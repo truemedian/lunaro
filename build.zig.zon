@@ -1,0 +1,5 @@
+.{
+    .name = "lunaro",
+    .description = "Bindings to the Lua C API",
+    .version = "0.1.0",
+}

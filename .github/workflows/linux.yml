@@ -1,0 +1,28 @@
+name: Linux
+
+on:
+  push:
+    paths:
+      - "**.zig"
+  pull_request:
+    paths:
+      - "**.zig"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: master
+
+      - name: Install Lua
+        run: sudo apt-get install liblua5.1-dev liblua5.2-dev liblua5.3-dev liblua5.4-dev libluajit-5.1-dev
+
+      - name: Test
+        run: zig build test
