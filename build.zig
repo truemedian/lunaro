@@ -20,4 +20,20 @@ pub fn build(b: *std.Build) void {
         test_this_step.dependOn(&test_exe.step);
         test_step.dependOn(test_this_step);
     }
+
+    const autodoc_test = b.addTest(.{
+        .root_source_file = .{ .path = "src/lunaro.zig" },
+    });
+
+    autodoc_test.linkLibC();
+    autodoc_test.linkSystemLibrary("lua");
+
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = autodoc_test.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+
+    const autodoc_step = b.step("autodoc", "Generate documentation");
+    autodoc_step.dependOn(&install_docs.step);
 }

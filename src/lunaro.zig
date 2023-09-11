@@ -20,10 +20,10 @@ fn lookup(comptime field: []const u8, comptime default: anytype) @TypeOf(default
 }
 
 const arith_functions = struct {
-    fn mtcall(L: *State, index: State.Index, field: [:0]const u8, args: State.Size) bool {
+    fn mtcall(L: *State, index: Index, field: [:0]const u8, args: Size) bool {
         const t = L.getmetafield(index, field);
         if (t != .nil) {
-            L.insert(-@as(State.Index, args) - 1);
+            L.insert(-@as(Index, args) - 1);
             L.call(args, 1);
 
             return true;
@@ -49,7 +49,7 @@ const arith_functions = struct {
         pub const shr = 2;
     };
 
-    pub fn le(L: *State, A: State.Index, B: State.Index) bool {
+    pub fn le(L: *State, A: Index, B: Index) bool {
         const Ta = L.typeof(A);
         const Tb = L.typeof(B);
 
@@ -83,7 +83,7 @@ const arith_functions = struct {
             return !res;
         }
 
-        L.throw("attempt to compare %s with %s", .{ L.typenameof(absA), L.typenameof(absB) });
+        L.raise("attempt to compare %s with %s", .{ L.typenameof(absA), L.typenameof(absB) });
     }
 
     pub fn add(L: *State) void {
@@ -108,9 +108,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__add", 2) or mtcall(L, -1, "__add", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn sub(L: *State) void {
@@ -135,9 +135,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__sub", 2) or mtcall(L, -1, "__sub", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn mul(L: *State) void {
@@ -162,9 +162,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__mul", 2) or mtcall(L, -1, "__mul", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn div(L: *State) void {
@@ -189,9 +189,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__div", 2) or mtcall(L, -1, "__div", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn idiv(L: *State) void {
@@ -206,9 +206,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__idiv", 2) or mtcall(L, -1, "__idiv", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn mod(L: *State) void {
@@ -233,9 +233,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__mod", 2) or mtcall(L, -1, "__mod", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn pow(L: *State) void {
@@ -246,7 +246,7 @@ const arith_functions = struct {
                     const b = L.tointeger(-1);
                     L.pop(2);
 
-                    return L.push(std.math.pow(State.Integer, a, b));
+                    return L.push(std.math.pow(Integer, a, b));
                 }
             }
 
@@ -254,15 +254,15 @@ const arith_functions = struct {
             const b = L.tonumber(-1);
             L.pop(2);
 
-            return L.push(std.math.pow(State.Number, a, b));
+            return L.push(std.math.pow(Number, a, b));
         }
 
         if (mtcall(L, -2, "__pow", 2) or mtcall(L, -1, "__pow", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn unm(L: *State) void {
@@ -284,7 +284,7 @@ const arith_functions = struct {
 
         if (mtcall(L, -1, "__unm", 1)) return;
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn bnot(L: *State) void {
@@ -297,7 +297,7 @@ const arith_functions = struct {
 
         if (mtcall(L, -1, "__bnot", 1)) return;
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn band(L: *State) void {
@@ -312,9 +312,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__band", 2) and mtcall(L, -1, "__band", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn bor(L: *State) void {
@@ -329,9 +329,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__bor", 2) or mtcall(L, -1, "__bor", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn bxor(L: *State) void {
@@ -346,9 +346,9 @@ const arith_functions = struct {
         if (mtcall(L, -2, "__bxor", 2) or mtcall(L, -1, "__bxor", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn shl(L: *State) void {
@@ -357,16 +357,16 @@ const arith_functions = struct {
             const amt = L.tointeger(-1);
             L.pop(2);
 
-            if (amt >= @bitSizeOf(State.Integer)) return L.push(0);
+            if (amt >= @bitSizeOf(Integer)) return L.push(0);
             return L.push(a << @intCast(amt));
         }
 
         if (mtcall(L, -2, "__shl", 2) or mtcall(L, -1, "__shl", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 
     pub fn shr(L: *State) void {
@@ -375,121 +375,164 @@ const arith_functions = struct {
             const amt = L.tointeger(-1);
             L.pop(2);
 
-            if (amt >= @bitSizeOf(State.Integer)) return L.push(0);
+            if (amt >= @bitSizeOf(Integer)) return L.push(0);
             return L.push(a >> @intCast(amt));
         }
 
         if (mtcall(L, -2, "__shr", 2) or mtcall(L, -1, "__shr", 2)) return;
 
         if (!L.isnumber(-2))
-            L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
+            L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-2)});
 
-        L.throw("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
+        L.raise("attempt to perform arithmetic on a %s value", .{L.typenameof(-1)});
     }
 };
 
-pub const State = opaque {
-    pub const Number = c.lua_Number;
+/// The type of floating point numbers in Lua. By default this is `f64`.
+/// In Lua 5.1 and 5.2, it is possible that this may instead be an integer.
+pub const Number = c.lua_Number;
 
-    pub const Integer = c.lua_Integer;
+/// The type of integers in Lua. By default this is `i64`.
+pub const Integer = c.lua_Integer;
 
-    pub const Unsigned = lookup("lua_Unsigned", std.meta.Int(.unsigned, @bitSizeOf(Integer) - 1));
+/// The type of unsigned integers in Lua. By default this is the unsigned variant of `Integer`.
+pub const Unsigned = lookup("lua_Unsigned", std.meta.Int(.unsigned, @bitSizeOf(Integer)));
 
-    pub const Index = c_int;
-    pub const AbsIndex = Size;
-    pub const Size = std.meta.Int(.unsigned, @bitSizeOf(Index) - 1);
+/// The type of indexes into the Lua stack. By default this is `i32`.
+pub const Index = c_int;
 
-    pub const CFn = c.lua_CFunction;
-    pub const ReaderFn = c.lua_Reader;
-    pub const WriterFn = c.lua_Writer;
-    pub const AllocFn = c.lua_Alloc;
-    pub const DebugInfo = c.lua_Debug;
-    pub const HookFn = c.lua_Hook;
+/// The type of absolute indexes (eg. not pseudo indexes) into the Lua stack. This is the same as `Size`.
+pub const AbsIndex = Size;
 
-    pub const REGISTRYINDEX = c.LUA_REGISTRYINDEX;
+/// The type of sizes used by Lua. By default this is `u31` and can be implicitly converted to `Index`.
+pub const Size = std.meta.Int(.unsigned, @bitSizeOf(Index) - 1);
 
-    pub const ThreadStatus = enum(c_int) {
-        ok = lookup("LUA_OK", 0),
-        yield = c.LUA_YIELD,
-        err_runtime = c.LUA_ERRRUN,
-        err_syntax = c.LUA_ERRSYNTAX,
-        err_memory = c.LUA_ERRMEM,
-        err_handler = c.LUA_ERRERR,
-        err_file = c.LUA_ERRFILE,
-    };
+/// The type of external functions used by Lua.
+pub const CFn = c.lua_CFunction;
 
-    pub const Type = enum(c_int) {
-        none = c.LUA_TNONE,
-        nil = c.LUA_TNIL,
-        boolean = c.LUA_TBOOLEAN,
-        lightuserdata = c.LUA_TLIGHTUSERDATA,
-        number = c.LUA_TNUMBER,
-        string = c.LUA_TSTRING,
-        table = c.LUA_TTABLE,
-        function = c.LUA_TFUNCTION,
-        userdata = c.LUA_TUSERDATA,
-        thread = c.LUA_TTHREAD,
-    };
+/// The type of reader functions used by Lua.
+pub const ReaderFn = c.lua_Reader;
 
-    pub const ArithOp = enum(c_int) {
-        add = lookup("LUA_OPADD", -1),
-        sub = lookup("LUA_OPSUB", -2),
-        mul = lookup("LUA_OPMUL", -3),
-        div = lookup("LUA_OPDIV", -4),
-        idiv = lookup("LUA_OPIDIV", -5),
-        mod = lookup("LUA_OPMOD", -6),
-        pow = lookup("LUA_OPPOW", -7),
-        unm = lookup("LUA_OPUNM", -8),
-        bnot = lookup("LUA_OPBNOT", -9),
-        band = lookup("LUA_OPBAND", -10),
-        bor = lookup("LUA_OPBOR", -11),
-        bxor = lookup("LUA_OPBXOR", -12),
-        shl = lookup("LUA_OPSHL", -13),
-        shr = lookup("LUA_OPSHR", -14),
-    };
+/// The type of writer functions used by Lua.
+pub const WriterFn = c.lua_Writer;
 
-    pub const CompareOp = enum(c_int) {
-        eq = lookup("LUA_OPEQ", -1),
-        lt = lookup("LUA_OPLT", -2),
-        le = lookup("LUA_OPLE", -3),
-    };
+/// The type of allocation functions used by Lua.
+pub const AllocFn = c.lua_Alloc;
 
-    pub const LoadMode = enum {
-        binary,
-        text,
-        either,
-    };
+/// The structure used to hold debug information. Some fields may not exist in some versions of Lua.
+pub const DebugInfo = c.lua_Debug;
 
-    pub const Value = union(Type) {
-        none,
-        nil,
-        boolean: bool,
-        lightuserdata: *anyopaque,
-        number: Number,
-        string: [:0]const u8,
-        table,
-        function: CFn,
-        userdata: *anyopaque,
-        thread: *State,
+/// The type of debug hook functions used by Lua.
+pub const HookFn = c.lua_Hook;
 
-        pub fn format(value: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-            _ = fmt;
+/// The pseudo-index used to refer to the registry.
+pub const REGISTRYINDEX = c.LUA_REGISTRYINDEX;
 
-            switch (value) {
-                .none => return std.fmt.formatBuf("TValue{ .none }", options, writer),
-                .nil => return std.fmt.formatBuf("TValue{ .nil }", options, writer),
-                .boolean => return std.fmt.format(writer, "TValue{{ .boolean = {} }}", .{value.boolean}),
-                .lightuserdata => return std.fmt.format(writer, "TValue{{ .lightuserdata = {x} }}", .{@intFromPtr(value.lightuserdata)}),
-                .number => return std.fmt.format(writer, "TValue{{ .number = {d} }}", .{value.number}),
-                .string => return std.fmt.format(writer, "TValue{{ .string = '{'}' }}", .{std.zig.fmtEscapes(value.string)}),
-                .table => return std.fmt.formatBuf("TValue{ .table }", options, writer),
-                .function => return std.fmt.format(writer, "TValue{{ .function = {?x} }}", .{@intFromPtr(value.function)}),
-                .userdata => return std.fmt.format(writer, "TValue{{ .userdata = {x} }}", .{@intFromPtr(value.userdata)}),
-                .thread => return std.fmt.format(writer, "TValue{{ .thread = {x} }}", .{@intFromPtr(value.thread)}),
-            }
+/// The enum used to represent the status of a thread.
+pub const ThreadStatus = enum(c_int) {
+    ok = lookup("LUA_OK", 0),
+    yield = c.LUA_YIELD,
+    err_runtime = c.LUA_ERRRUN,
+    err_syntax = c.LUA_ERRSYNTAX,
+    err_memory = c.LUA_ERRMEM,
+    err_handler = c.LUA_ERRERR,
+    err_file = c.LUA_ERRFILE,
+};
+
+/// The enum of different possible types of a Lua value.
+pub const Type = enum(c_int) {
+    none = c.LUA_TNONE,
+    nil = c.LUA_TNIL,
+    boolean = c.LUA_TBOOLEAN,
+    lightuserdata = c.LUA_TLIGHTUSERDATA,
+    number = c.LUA_TNUMBER,
+    string = c.LUA_TSTRING,
+    table = c.LUA_TTABLE,
+    function = c.LUA_TFUNCTION,
+    userdata = c.LUA_TUSERDATA,
+    thread = c.LUA_TTHREAD,
+};
+
+/// The enum of different possible arithmetic operations to be passed to `State.arith`.
+/// A negative value indicates that lunaro will be forced to polyfill the operation.
+pub const ArithOp = enum(c_int) {
+    add = lookup("LUA_OPADD", -1),
+    sub = lookup("LUA_OPSUB", -2),
+    mul = lookup("LUA_OPMUL", -3),
+    div = lookup("LUA_OPDIV", -4),
+    idiv = lookup("LUA_OPIDIV", -5),
+    mod = lookup("LUA_OPMOD", -6),
+    pow = lookup("LUA_OPPOW", -7),
+    unm = lookup("LUA_OPUNM", -8),
+    bnot = lookup("LUA_OPBNOT", -9),
+    band = lookup("LUA_OPBAND", -10),
+    bor = lookup("LUA_OPBOR", -11),
+    bxor = lookup("LUA_OPBXOR", -12),
+    shl = lookup("LUA_OPSHL", -13),
+    shr = lookup("LUA_OPSHR", -14),
+};
+
+/// The enum of different possible comparison operations to be passed to `State.compare`.
+pub const CompareOp = enum(c_int) {
+    eq = lookup("LUA_OPEQ", -1),
+    lt = lookup("LUA_OPLT", -2),
+    le = lookup("LUA_OPLE", -3),
+};
+
+/// The different possible modes of loading a Lua chunk.
+pub const LoadMode = enum {
+    binary,
+    text,
+    either,
+};
+
+/// A union of the possible Lua types, mostly used for debugging.
+pub const Value = union(Type) {
+    none,
+    nil,
+    boolean: bool,
+    lightuserdata: *anyopaque,
+    number: Number,
+    string: [:0]const u8,
+    table,
+    function: CFn,
+    userdata: *anyopaque,
+    thread: *State,
+
+    pub fn format(value: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+
+        switch (value) {
+            .none => return std.fmt.formatBuf("TValue{ .none }", options, writer),
+            .nil => return std.fmt.formatBuf("TValue{ .nil }", options, writer),
+            .boolean => return std.fmt.format(writer, "TValue{{ .boolean = {} }}", .{value.boolean}),
+            .lightuserdata => return std.fmt.format(writer, "TValue{{ .lightuserdata = {x} }}", .{@intFromPtr(value.lightuserdata)}),
+            .number => return std.fmt.format(writer, "TValue{{ .number = {d} }}", .{value.number}),
+            .string => return std.fmt.format(writer, "TValue{{ .string = '{'}' }}", .{std.zig.fmtEscapes(value.string)}),
+            .table => return std.fmt.formatBuf("TValue{ .table }", options, writer),
+            .function => return std.fmt.format(writer, "TValue{{ .function = {?x} }}", .{@intFromPtr(value.function)}),
+            .userdata => return std.fmt.format(writer, "TValue{{ .userdata = {x} }}", .{@intFromPtr(value.userdata)}),
+            .thread => return std.fmt.format(writer, "TValue{{ .thread = {x} }}", .{@intFromPtr(value.thread)}),
         }
-    };
+    }
+};
 
+/// An opaque type representing a Lua thread. This is the only way to access or manipulate the Lua state.
+///
+/// Stack Documentation follows the Lua format: [-o, +p, x]
+/// - The first field, o, is how many elements the function pops from the stack.
+/// - The second field, p, is how many elements the function pushes onto the stack.
+/// - Any function always pushes its results after popping its arguments.
+///   - A field in the form x|y means the function can push (or pop) x or y elements, depending on the situation
+///   - an interrogation mark '?' means that we cannot know how many elements the function pops/pushes by looking
+///     only at its arguments (e.g., they may depend on what is on the stack).
+/// - The third field, x, tells whether the function may raise errors:
+///   - '-' means the function never raises any error
+///   - 'm' means the function may raise out-of-memory errors and errors running a __gc metamethod
+///   - 'e' means the function may raise any errors (it can run arbitrary Lua code, either directly or through
+///     metamethods)
+///   - 'v' means the function may raise an error on purpose.
+pub const State = opaque {
     fn to(ptr: *State) *c.lua_State {
         var x: *c.lua_State = @ptrCast(ptr);
         return x;
@@ -497,32 +540,42 @@ pub const State = opaque {
 
     // state manipulation
 
-    pub fn newstateadvanced(f: AllocFn, ud: ?*anyopaque) !*State {
+    /// [-0, +0, -] Creates a new Lua state. Allows for custom allocation functions.
+    pub fn initWithAlloc(f: AllocFn, ud: ?*anyopaque) !*State {
         const ret = c.lua_newstate(f, ud);
         if (ret == null) return error.OutOfMemory;
         return @ptrCast(ret.?);
     }
 
+    /// [-0, +0, -] Destroys all objects in the given state and frees all dynamic memory used by this state.
     pub fn close(L: *State) void {
         return c.lua_close(to(L));
     }
 
+    /// [-0, +1, m] Creates a new Lua thread, pushes it onto the stack, and returns a pointer to it. This thread
+    /// shares its global environment with the given thread.
+    /// There is no explicit function to close or to destroy a thread. Threads are subject to garbage collection,
+    /// like any Lua object.
     pub fn createcoroutine(L: *State) !*State {
         const ptr = c.lua_newthread(to(L));
         if (ptr == null) return error.OutOfMemory;
         return @ptrCast(ptr.?);
     }
 
+    /// [-0, +0, -] Sets a new panic function and returns the old one.
     pub fn atpanic(L: *State, panicf: anytype) CFn {
         return c.lua_atpanic(to(L), wrapAnyFn(panicf));
-    } // TODO: wrap
+    }
 
     // basic stack manipulation
 
+    /// [-0, +0, -] Returns the pseudo-index that represents the i-th upvalue of the running function.
     pub fn upvalueindex(index: Index) Index {
         return c.lua_upvalueindex(index);
     }
 
+    /// [-0, +0, -] Converts the acceptable index `index` into an absolute index (that is, one that does not depend
+    /// on the stack top).
     pub fn absindex(L: *State, index: Index) Index {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.lua_absindex(to(L), index);
@@ -533,18 +586,27 @@ pub const State = opaque {
         return index;
     }
 
+    /// [-0, +0, -] Returns the index of the top element in the stack. This also represents the number of elements
+    /// in the stack.
     pub fn gettop(L: *State) Index {
         return c.lua_gettop(to(L));
     }
 
+    /// [-?, +?, -] Sets the stack top to the given index. If the new top is larger than the old one, then the new
+    /// elements are filled with nil.
     pub fn settop(L: *State, index: Index) void {
         return c.lua_settop(to(L), index);
     }
 
+    /// [-0, +1, -] Pushes a copy of the element at the given index onto the stack.
     pub fn pushvalue(L: *State, index: Index) void {
         return c.lua_pushvalue(to(L), index);
     }
 
+    /// [-1, +0, -] Removes the element at the given valid index, shifting down the elements above this index to
+    /// fill the gap.
+    ///
+    /// Cannot be called with a pseudo-index, because a pseudo-index is not an actual stack position.
     pub fn remove(L: *State, index: Index) void {
         if (c.LUA_VERSION_NUM >= 503) {
             L.rotate(index, -1);
@@ -554,6 +616,10 @@ pub const State = opaque {
         return c.lua_remove(to(L), index);
     }
 
+    /// [-1, +1, -] Moves the top element into the given valid index, shifting up the elements above this index to
+    /// open space.
+    ///
+    /// This function cannot be called with a pseudo-index, because a pseudo-index is not an actual stack position.
     pub fn insert(L: *State, index: Index) void {
         if (c.LUA_VERSION_NUM >= 503) {
             return L.rotate(index, 1);
@@ -562,6 +628,9 @@ pub const State = opaque {
         return c.lua_insert(to(L), index);
     }
 
+    /// [-1, +0, -] Moves the top element into the given valid index without shifting any element (therefore
+    /// replacing the value at that given index),
+    /// and then pops the top element.
     pub fn replace(L: *State, index: Index) void {
         if (c.LUA_VERSION_NUM >= 503) {
             L.copy(-1, index);
@@ -586,6 +655,13 @@ pub const State = opaque {
         }
     }
 
+    /// [-0, +0, -] Rotates the stack elements between the valid index idx and the top of the stack.
+    ///
+    /// The elements are rotated n positions in the direction of the top, for a positive n, or -n positions in the
+    /// direction of the bottom, for a negative n.
+    /// The absolute value of n must not be greater than the size of the slice being rotated.
+    ///
+    /// This function cannot be called with a pseudo-index, because a pseudo-index is not an actual stack position.
     pub fn rotate(L: *State, index: Index, amount: Index) void {
         if (c.LUA_VERSION_NUM >= 503) {
             return c.lua_rotate(to(L), index, amount);
@@ -605,6 +681,8 @@ pub const State = opaque {
         }
     }
 
+    /// [-0, +0, -] Copies the element at index `src` into the valid index `dest`, replacing the value at that
+    /// position. Values at other positions are not affected.
     pub fn copy(L: *State, src: Index, dest: Index) void {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.lua_copy(to(L), src, dest);
@@ -616,32 +694,50 @@ pub const State = opaque {
         return L.replace(abs_dest);
     }
 
+    /// [-0, +0, -] Ensures that the stack has space for at least n extra slots (that is, that you can safely push
+    /// up to n values into it).
+    /// It returns false if it cannot fulfill the request, either because it would cause the stack to be larger than
+    /// a fixed maximum size(typically at least several thousand elements) or because it cannot allocate memory for
+    /// the extra space.
+    ///
+    /// This function never shrinks the stack; if the stack already has space for the extra slots, it is left
+    /// unchanged.
     pub fn checkstack(L: *State, extra: Size) bool {
         return c.lua_checkstack(to(L), extra) == 0;
     }
 
+    /// [-?, +?, -] Exchange values between different threads of the same state.
+    ///
+    /// This function pops `n` values from the stack `src`, and pushes them onto the stack `dest`.
     pub fn xmove(src: *State, dest: *State, n: Size) void {
         return c.lua_xmove(to(src), to(dest), n);
     }
 
+    /// [-n, +0, -] Pops n elements from the stack.
     pub fn pop(L: *State, n: Size) void {
         return c.lua_settop(to(L), -@as(Index, n) - 1);
     }
 
     // access functions (stack -> zig)
 
+    /// [-0, +0, -] Returns true if the value at the given index is a number or a string convertible to a number.
     pub fn isnumber(L: *State, index: Index) bool {
         return c.lua_isnumber(to(L), index) != 0;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a string or a number (which is always
+    /// convertible to a string).
     pub fn isstring(L: *State, index: Index) bool {
         return c.lua_isstring(to(L), index) != 0;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a C function.
     pub fn iscfunction(L: *State, index: Index) bool {
         return c.lua_iscfunction(to(L), index) != 0;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is an integer (that is, the value is a number and
+    /// is represented as an integer).
     pub fn isinteger(L: *State, index: Index) bool {
         if (c.LUA_VERSION_NUM >= 503) {
             return c.lua_isinteger(to(L), index) != 0;
@@ -652,14 +748,18 @@ pub const State = opaque {
         return @as(Integer, @intFromFloat(L.tonumber(index))) == L.tointeger(index);
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a userdata (either full or light).
     pub fn isuserdata(L: *State, index: Index) bool {
         return c.lua_isuserdata(to(L), index) != 0;
     }
 
+    /// [-0, +0, -] Returns the type of the value in the given valid index.
     pub fn typeof(L: *State, index: Index) Type {
         return @enumFromInt(c.lua_type(to(L), index));
     }
 
+    /// [-0, +0, -] Converts the Lua value at the given index to `Number`. The Lua value must be a number or a
+    /// string convertible to a number; otherwise, returns 0.
     pub fn tonumber(L: *State, index: Index) Number {
         if (c.LUA_VERSION_NUM >= 502) {
             var isnum: c_int = 0;
@@ -672,6 +772,8 @@ pub const State = opaque {
         return c.lua_tonumber(to(L), index);
     }
 
+    /// [-0, +0, -] Converts the Lua value at the given index to `Number`. The Lua value must be an integer or a
+    /// number or string convertible to an integer; otherwise, returns 0.
     pub fn tointeger(L: *State, index: Index) Integer {
         if (c.LUA_VERSION_NUM >= 502) {
             var isnum: c_int = 0;
@@ -684,10 +786,15 @@ pub const State = opaque {
         return c.lua_tointeger(to(L), index);
     }
 
+    /// [-0, +0, -] Converts the Lua value at the given index to `bool`.
+    ///
+    /// If the value is not `false` or `nil`, returns `true`; otherwise, returns `false`.
     pub fn toboolean(L: *State, index: Index) bool {
         return c.lua_toboolean(to(L), index) != 0;
     }
 
+    /// [-0, +0, m] Converts the Lua value at the given index to a string. If the value is a number, then tolstring
+    /// also changes the actual value in the stack to a string (which will confuse `next`).
     pub fn tolstring(L: *State, index: Index) ?[:0]const u8 {
         var ptr_len: usize = undefined;
         const ptr = c.lua_tolstring(to(L), index, &ptr_len);
@@ -696,6 +803,12 @@ pub const State = opaque {
         return ptr[0..ptr_len :0];
     }
 
+    /// [-0, +0, -] Returns the raw "length" of the value at the given index.
+    ///
+    /// For strings, this is the string length.
+    /// For tables, this is the result of the length operator ('#') with no metamethods.
+    /// For userdata, this is the size of the block of memory allocated for the userdata.
+    /// For other values, it is 0.
     pub fn rawlen(L: *State, index: Index) usize {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.lua_rawlen(to(L), index);
@@ -704,22 +817,35 @@ pub const State = opaque {
         return c.lua_objlen(to(L), index);
     }
 
+    /// [-0, +0, -] Converts the Lua value at the given index to a C function (or null).
     pub fn tocfunction(L: *State, index: Index) CFn {
         return c.lua_tocfunction(to(L), index);
     }
 
+    /// [-0, +0, -] If the value at the given index is a full userdata, returns its block address. If the value is a
+    /// light userdata, returns its pointer.
     pub fn touserdata(L: *State, comptime T: type, index: Index) ?*align(@alignOf(usize)) T {
         return @ptrCast(@alignCast(c.lua_touserdata(to(L), index)));
     }
 
+    /// [-0, +0, -] Converts the value at the given index to a Lua thread (represented as `State`) or null.
     pub fn tothread(L: *State, index: Index) ?*State {
         return @ptrCast(c.lua_tothread(to(L), index));
     }
 
+    /// [-0, +0, -] Converts the value at the given index to a pointer or null. Different objects give different
+    /// pointers.
+    ///
+    /// There is no way to convert the pointer back to its original value.
     pub fn topointer(L: *State, index: Index) ?*const anyopaque {
         return c.lua_topointer(to(L), index);
     }
 
+    /// [-(2|1), +1, e] Performs an arithmetic or bitwise operation over the two values (or one, in the case of
+    /// negations) at the top of the stack. The function pops these values, performs the operation, and pushes the
+    /// result back onto the stack.
+    ///
+    /// This function follows the semantics of the corresponding Lua operator (that is, it may call metamethods).
     pub fn arith(L: *State, op: ArithOp) void {
         if (c.LUA_VERSION_NUM >= 502) {
             if (c.LUA_VERSION_NUM >= 503 or @intFromEnum(op) >= 0) {
@@ -741,10 +867,15 @@ pub const State = opaque {
         }
     }
 
+    /// [-0, +0, -] Returns true if the values at indices `a` and `b` are primitively equal (that is, without
+    /// calling metamethods).
     pub fn rawequal(L: *State, a: Index, b: Index) bool {
         return c.lua_rawequal(to(L), a, b) != 0;
     }
 
+    /// [-0, +0, e] Compares two Lua values. Returns true if the value at index `a` satisfies op when compared with
+    /// the value at index `b`, following the semantics of the corresponding Lua operator (that is, it may call
+    /// metamethods).
     pub fn compare(L: *State, a: Index, b: Index, op: CompareOp) bool {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.lua_compare(to(L), a, b, @intFromEnum(op)) != 0;
@@ -762,38 +893,47 @@ pub const State = opaque {
         }
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a function (either C or Lua).
     pub fn isfunction(L: *State, index: Index) bool {
         return c.lua_type(to(L), index) == c.LUA_TFUNCTION;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a table.
     pub fn istable(L: *State, index: Index) bool {
         return c.lua_type(to(L), index) == c.LUA_TTABLE;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a full userdata.
     pub fn isfulluserdata(L: *State, index: Index) bool {
         return c.lua_type(to(L), index) == c.LUA_TUSERDATA;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a light userdata.
     pub fn islightuserdata(L: *State, index: Index) bool {
         return c.lua_type(to(L), index) == c.LUA_TLIGHTUSERDATA;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is nil.
     pub fn isnil(L: *State, index: Index) bool {
         return c.lua_type(to(L), index) == c.LUA_TNIL;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a boolean.
     pub fn isboolean(L: *State, index: Index) bool {
         return c.lua_type(to(L), index) == c.LUA_TBOOLEAN;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is a thread.
     pub fn isthread(L: *State, index: Index) bool {
         return c.lua_type(to(L), index) == c.LUA_TTHREAD;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is not valid.
     pub fn isnone(L: *State, index: Index) bool {
         return c.lua_type(to(L), index) == c.LUA_TNONE;
     }
 
+    /// [-0, +0, -] Returns true if the value at the given index is nil or not valid.
     pub fn isnoneornil(L: *State, index: Index) bool {
         const t = c.lua_type(to(L), index);
         return t == c.LUA_TNONE or t == c.LUA_TNIL;
@@ -801,22 +941,28 @@ pub const State = opaque {
 
     // push functions (zig -> stack)
 
+    /// [-0, +1, -] Pushes a nil value onto the stack.
     pub fn pushnil(L: *State) void {
         return c.lua_pushnil(to(L));
     }
 
+    /// [-0, +1, -] Pushes a float with value `value` onto the stack.
     pub fn pushnumber(L: *State, value: Number) void {
         return c.lua_pushnumber(to(L), value);
     }
 
+    /// [-0, +1, -] Pushes an integer with value `value` onto the stack.
     pub fn pushinteger(L: *State, value: Integer) void {
         return c.lua_pushinteger(to(L), value);
     }
 
+    /// [-0, +1, m] Pushes a copy of the string `value` onto the stack.
     pub fn pushstring(L: *State, value: []const u8) void {
         _ = c.lua_pushlstring(to(L), value.ptr, value.len);
     }
 
+    /// [-0, +1, m] Pushes a copy of the string `value` onto the stack. Returns a pointer to the internal copy, but
+    /// does NOT reference it.
     pub fn pushstringExtra(L: *State, value: []const u8) [*:0]const u8 {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.lua_pushlstring(to(L), value.ptr, value.len)[0..value.len :0];
@@ -826,33 +972,55 @@ pub const State = opaque {
         return L.tolstring(-1).?;
     }
 
-    pub fn pushfstring(L: *State, comptime fmt: [:0]const u8, args: anytype) [:0]const u8 {
+    /// [-0, +1, e] Pushes onto the stack a formatted string and returns a pointer to this string.
+    ///
+    /// It is similar to the C function sprintf, but the conversion specifiers are quite restricted:
+    /// - There are no flags, widths, or precisions, and only the following conversion specifiers are allowed:
+    /// - '%%' (inserts the character '%')
+    /// - '%s' (inserts a zero-terminated string, with no size restrictions)
+    /// - '%f' (inserts a Number)
+    /// - '%I' (inserts a Integer)
+    /// - '%p' (inserts a pointer as a hexadecimal numeral)
+    /// - '%d' (inserts an c_int)
+    /// - '%c' (inserts an c_int as a one-byte character)
+    /// - '%U' (inserts a long int as a UTF-8 byte sequence) [Lua 5.3+]
+    pub fn pushfstring(L: *State, fmt: [:0]const u8, args: anytype) [:0]const u8 {
         const ptr = @call(.auto, c.lua_pushfstring, .{ to(L), fmt.ptr } ++ args);
         return std.mem.sliceTo(ptr, 0);
     }
 
+    /// [-n, +1, m] Pushes a new C closure onto the stack. Pops `n` values from the stack and sets the new closure's
+    /// upvalues from the popped values.
+    ///
+    /// Does not wrap zig functions, only accepts CFn.
     pub fn pushclosure_unwrapped(L: *State, func: CFn, n: Size) void {
         return c.lua_pushcclosure(to(L), func, n);
     }
 
+    /// [-n, +1, m] Pushes a new C closure onto the stack. Pops `n` values from the stack and sets the new closure's
+    /// upvalues from the popped values.
     pub fn pushclosure(L: *State, comptime func: anytype, n: Size) void {
         return c.lua_pushcclosure(to(L), wrapAnyFn(func), n);
     }
 
+    /// [-0, +1, -] Pushes a boolean value with value `value` onto the stack.
     pub fn pushboolean(L: *State, value: bool) void {
         return c.lua_pushboolean(to(L), @intFromBool(value));
     }
 
+    /// [-0, +1, -] Pushes a light userdata onto the stack.
     pub fn pushlightuserdata(L: *State, ptr: anytype) void {
         return c.lua_pushlightuserdata(to(L), @ptrCast(@constCast(ptr)));
     }
 
+    /// [-0, +1, -] Pushes the thread represented by `L` onto the stack.
     pub fn pushthread(L: *State) bool {
         return c.lua_pushthread(to(L)) != 0;
     }
 
     // get functions (Lua -> stack)
 
+    /// [-0, +1, e] Pushes onto the stack the value of the global `name`. Returns the type of that value.
     pub fn getglobal(L: *State, name: [:0]const u8) Type {
         if (c.LUA_VERSION_NUM >= 503) {
             return @enumFromInt(c.lua_getglobal(to(L), name.ptr));
@@ -862,6 +1030,11 @@ pub const State = opaque {
         return L.typeof(-1);
     }
 
+    /// [-1, +1, e] Pushes onto the stack the value t[k], where t is the value at the given index and k is the value
+    /// at the top of the stack. Returns the type of the pushed value.
+    ///
+    /// This function pops the key from the stack (putting the resulting value in its place). As in Lua, this
+    /// function may trigger a metamethod for the "index" event.
     pub fn gettable(L: *State, index: Index) Type {
         if (c.LUA_VERSION_NUM >= 503) {
             return @enumFromInt(c.lua_gettable(to(L), index));
@@ -871,6 +1044,9 @@ pub const State = opaque {
         return L.typeof(-1);
     }
 
+    /// [-0, +1, e] Pushes onto the stack the value t[k], where t is the value at the given index.
+    ///
+    /// As in Lua, this function may trigger a metamethod for the "index" event.
     pub fn getfield(L: *State, index: Index, name: [:0]const u8) Type {
         if (c.LUA_VERSION_NUM >= 503) {
             return @enumFromInt(c.lua_getfield(to(L), index, name.ptr));
@@ -880,6 +1056,9 @@ pub const State = opaque {
         return L.typeof(-1);
     }
 
+    /// [-0, +1, e] Pushes onto the stack the value t[n], where t is the value at the given index.
+    ///
+    /// As in Lua, this function may trigger a metamethod for the "index" event.
     pub fn geti(L: *State, index: Index, n: Integer) Type {
         if (c.LUA_VERSION_NUM >= 503) {
             return @enumFromInt(c.lua_geti(to(L), index, n));
@@ -890,6 +1069,11 @@ pub const State = opaque {
         return L.gettable(abs);
     }
 
+    /// [-1, +1, -] Pushes onto the stack the value t[i], where t is the value at the given index and i is the value
+    /// at the top of the stack.
+    ///
+    /// This function pops the key from the stack (putting the resulting value in its place). This access is "raw"
+    /// and does not invoke metamethods.
     pub fn rawget(L: *State, index: Index) Type {
         if (c.LUA_VERSION_NUM >= 503) {
             return @enumFromInt(c.lua_rawget(to(L), index));
@@ -899,6 +1083,9 @@ pub const State = opaque {
         return L.typeof(-1);
     }
 
+    /// [-0, +1, -] Pushes onto the stack the value t[n], where t is the value at the given index.
+    ///
+    /// The access is raw; that is, it does not invoke metamethods.
     pub fn rawgeti(L: *State, index: Index, n: Integer) Type {
         if (c.LUA_VERSION_NUM >= 503) {
             return @enumFromInt(c.lua_rawgeti(to(L), index, n));
@@ -913,6 +1100,10 @@ pub const State = opaque {
         }
     }
 
+    /// [-0, +1, -] Pushes onto the stack the value t[p], where t is the value at the given index and p is any
+    /// pointer.
+    ///
+    /// The access is raw; that is, it does not invoke metamethods.
     pub fn rawgetp(L: *State, index: Index, ptr: anytype) Type {
         assert(@typeInfo(@TypeOf(ptr)) == .Pointer);
         if (c.LUA_VERSION_NUM >= 503) {
@@ -924,18 +1115,31 @@ pub const State = opaque {
         return L.rawget(abs);
     }
 
+    /// [-0, +1, m] Creates a new empty table and pushes it onto the stack. Parameter `narr` is a hint for how many
+    /// elements the table will have as a sequence; parameter `nrec` is a hint for how many other elements the table
+    /// will have.
+    ///
+    /// Lua may use these hints to preallocate memory for the new table. This preallocation is useful for
+    /// performance when you know in advance how many elements the table will have.
     pub fn createtable(L: *State, narr: Size, nrec: Size) void {
         return c.lua_createtable(to(L), narr, nrec);
     }
 
-    pub fn newuserdata(L: *State, size: Size) *anyopaque {
+    /// [-0, +1, m] This function allocates a new block of memory with the given size, pushes onto the stack a new
+    /// full userdata with the block address, and returns this address.
+    ///
+    /// The host program can freely use this memory.
+    pub fn newuserdata(L: *State, size: Size) *align(@alignOf(usize)) anyopaque {
         if (c.LUA_VERSION_NUM >= 504) {
-            return c.lua_newuserdatauv(to(L), size, 1).?;
+            return @alignCast(c.lua_newuserdatauv(to(L), size, 1).?);
         }
 
-        return c.lua_newuserdata(to(L), size).?;
+        return @alignCast(c.lua_newuserdata(to(L), size).?);
     }
 
+    /// [-0, +(0|1), -] If the value at the given index has a metatable, the function pushes that metatable onto the
+    /// stack and returns true.
+    /// Otherwise, the function returns false and pushes nothing on the stack.
     pub fn getmetatable(L: *State, index: Index) bool {
         if (c.LUA_VERSION_NUM >= 504) {
             return c.lua_getmetatable(to(L), index) != 0;
@@ -944,10 +1148,12 @@ pub const State = opaque {
         return c.lua_getmetatable(to(L), index) != 0;
     }
 
+    /// [-0, +1, m] Creates a new empty table and pushes it onto the stack.
     pub fn newtable(L: *State) void {
         return c.lua_newtable(to(L));
     }
 
+    /// [-0, +1, -] Pushes onto the stack the global environment.
     pub fn pushglobaltable(L: *State) void {
         if (c.LUA_VERSION_NUM >= 502) {
             _ = L.rawgeti(REGISTRYINDEX, c.LUA_RIDX_GLOBALS);
@@ -957,6 +1163,9 @@ pub const State = opaque {
         return c.lua_pushvalue(to(L), c.LUA_GLOBALSINDEX);
     }
 
+    /// [-0, +1, -] Pushes onto the stack the Lua value associated with the full userdata at the given index.
+    ///
+    /// Returns the type of the pushed value.
     pub fn getuservalue(L: *State, index: Index) Type {
         if (c.LUA_VERSION_NUM >= 503) {
             return @enumFromInt(c.lua_getuservalue(to(L), index));
@@ -976,7 +1185,7 @@ pub const State = opaque {
         }
 
         if (!L.isfulluserdata(index))
-            L.throw("full userdata expected", .{});
+            L.raise("full userdata expected", .{});
 
         const ptr = L.topointer(index).?;
         return L.rawgetp(REGISTRYINDEX, ptr);
@@ -984,18 +1193,34 @@ pub const State = opaque {
 
     // set functions (stack -> Lua)
 
+    /// [-1, +0, e] Pops a value from the stack and sets it as the new value of global name.
     pub fn setglobal(L: *State, name: [:0]const u8) void {
         return c.lua_setglobal(to(L), name.ptr);
     }
 
+    /// [-2, +0, e] Does the equivalent to t[k] = v, where t is the value at the given index, v is the value at the
+    /// top of the stack, and k is the value just below the top.
+    ///
+    /// This function pops both the key and the value from the stack. As in Lua, this function may trigger a
+    /// metamethod for the "newindex" event.
     pub fn settable(L: *State, index: Index) void {
         return c.lua_settable(to(L), index);
     }
 
+    /// [-1, +0, e] Does the equivalent to t[k] = v, where t is the value at the given index and v is the value at
+    /// the top of the stack.
+    ///
+    /// This function pops the value from the stack. As in Lua, this function may trigger a metamethod for the
+    /// "newindex" event.
     pub fn setfield(L: *State, index: Index, name: [:0]const u8) void {
         return c.lua_setfield(to(L), index, name.ptr);
     }
 
+    /// [-1, +0, e] Does the equivalent to t[n] = v, where t is the value at the given index and v is the value at
+    /// the top of the stack.
+    ///
+    /// This function pops the value from the stack. As in Lua, this function may trigger a metamethod for the
+    /// "newindex" event.
     pub fn seti(L: *State, index: Index, n: Integer) void {
         if (c.LUA_VERSION_NUM >= 503) {
             return c.lua_seti(to(L), index, n);
@@ -1006,10 +1231,19 @@ pub const State = opaque {
         return L.settable(abs);
     }
 
+    /// [-2, +0, m] Does the equivalent to t[k] = v, where t is the value at the given index, v is the value at the
+    /// top of the stack, and k is the value just below the top.
+    ///
+    /// This function pops the both the key and value from the stack. The assignment is raw; that is, it does not
+    /// invoke metamethods.
     pub fn rawset(L: *State, index: Index) void {
         return c.lua_rawset(to(L), index);
     }
 
+    /// [-1, +0, m] Does the equivalent of t[n] = v, where t is the value at the given index and v is the value at
+    /// the top of the stack.
+    ///
+    /// This function pops the value from the stack. The assignment is raw; that is, it does not invoke metamethods.
     pub fn rawseti(L: *State, index: Index, n: Size) void {
         if (c.LUA_VERSION_NUM >= 503) {
             return c.lua_rawseti(to(L), index, n);
@@ -1018,6 +1252,10 @@ pub const State = opaque {
         return c.lua_rawseti(to(L), index, n);
     }
 
+    /// [-1, +0, m] Does the equivalent of t[p] = v, where t is the value at the given index, v is the value at the
+    /// top of the stack, and p is any pointer (which will become lightuserdata).
+    ///
+    /// The assignment is raw; that is, it does not invoke metamethods.
     pub fn rawsetp(L: *State, index: Index, ptr: anytype) void {
         assert(@typeInfo(@TypeOf(ptr)) == .Pointer);
         if (c.LUA_VERSION_NUM >= 503) {
@@ -1030,11 +1268,14 @@ pub const State = opaque {
         return L.rawset(abs);
     }
 
+    /// [-1, +0, -] Pops a table from the stack and sets it as the new metatable for the value at the given index.
     pub fn setmetatable(L: *State, index: Index) void {
         _ = c.lua_setmetatable(to(L), index);
         return;
     }
 
+    /// [-1, +0, -] Pops a value from the stack and sets it as the new value associated to the full userdata at the
+    /// given index.
     pub fn setuservalue(L: *State, index: Index) void {
         if (c.LUA_VERSION_NUM >= 503) {
             _ = c.lua_setuservalue(to(L), index);
@@ -1054,7 +1295,7 @@ pub const State = opaque {
         }
 
         if (!L.isfulluserdata(index))
-            L.throw("full userdata expected", .{});
+            L.raise("full userdata expected", .{});
 
         const ptr = L.topointer(index).?;
         return L.rawsetp(REGISTRYINDEX, ptr);
@@ -1062,6 +1303,16 @@ pub const State = opaque {
 
     // load and call functions
 
+    /// [-(nargs+1), +nresults, e] Calls a function. The following protocol must be followed:
+    ///
+    /// - The function to be called is pushed onto the stack.
+    /// - The arguments are pushed in direct order (the first argument is pushed first).
+    /// - Then call `State.call`, the function and all arguments are popped from the stack, and the function's
+    /// results are pushed onto the stack.
+    /// - The number of results is adjusted to `nresults`, unless `nresults` is `null` (indicating you want all
+    /// returned values).
+    /// - The function results are pushed in direct order (the first result is pushed first), such that the last
+    /// result is on the top of the stack.
     pub fn call(L: *State, nargs: Size, nresults: ?Size) void {
         const nres: Index = nresults orelse c.LUA_MULTRET;
 
@@ -1072,6 +1323,17 @@ pub const State = opaque {
         return c.lua_call(to(L), nargs, nres);
     }
 
+    /// [-(nargs + 1), +(nresults|1), -] Calls a function in protected mode. Both `nargs` and `nresults` have the
+    /// same meaning as in `call`. And like `call`, the function and all arguments are popped from the stack when
+    /// the function is called.
+    ///
+    /// If there are no errors during the call, `State.pcall` behaves exactly like `State.call`. However, if there
+    /// is any error, `State.pcall` catches it, pushes a single value on the stack (the error message), and returns
+    /// an error code.
+    ///
+    /// If `handler_index` is zero, the error object on the stack is exactly the original error object. Otherwise
+    /// `handler_index` is the stack index of a message handler. In case of runtime errors, this function will be
+    /// called with the error object and its return value will be the object pushed on the stack by `State.pcall`.
     pub fn pcall(L: *State, nargs: Size, nresults: ?Size, handler_index: Index) ThreadStatus {
         const nres: Index = nresults orelse c.LUA_MULTRET;
 
@@ -1082,6 +1344,14 @@ pub const State = opaque {
         return @enumFromInt(c.lua_pcall(to(L), nargs, nres, handler_index));
     }
 
+    /// [-0, +1, -] Loads a Lua chunk without running it. If there are no errors, `load` pushes the compiled chunk
+    /// as a Lua function on top of the stack. Otherwise, it pushes an error message.
+    ///
+    /// `load` uses the stack internally, so the reader function must always leave the stack unmodified when
+    /// returning.
+    ///
+    /// If the resulting function has upvalues, its first upvalue is set to the value of the global environment.
+    /// When loading main chunks, this upvalue will be the _ENV variable. Other upvalues are initialized with nil.
     pub fn load(L: *State, reader: anytype, chunkname: [:0]const u8, mode: LoadMode) ThreadStatus {
         const read = @typeInfo(@TypeOf(reader)).Pointer.child.read;
 
@@ -1100,14 +1370,20 @@ pub const State = opaque {
         }
 
         if (reader.mode == .binary and mode == .text)
-            L.throw("attempt to load a binary chunk (mode is 'text')", .{});
+            L.raise("attempt to load a binary chunk (mode is 'text')", .{});
 
         if (reader.mode == .text and mode == .binary)
-            L.throw("attempt to load a text chunk (mode is 'binary')", .{});
+            L.raise("attempt to load a text chunk (mode is 'binary')", .{});
 
         return @enumFromInt(c.lua_load(to(L), read, reader, chunkname));
     }
 
+    /// [-0, +0, -] Dumps a function as a binary chunk. Receives a Lua function on the top of the stack and produces
+    /// a binary chunk that, if loaded again, results in a function equivalent to the one dumped.
+    ///
+    /// If `strip` is true, the binary representation may not include all debug information about the function, to
+    /// save space. The value returned is the error code returned by the last call to the writer; `ok` means no
+    /// errors. This function does not pop the Lua function from the stack.
     pub fn dump(L: *State, writer: anytype, strip: bool) ThreadStatus {
         if (@typeInfo(@TypeOf(writer)) != .Pointer)
             @compileError("expected *LuaWriter, got " ++ @typeName(@TypeOf(writer)));
@@ -1122,6 +1398,11 @@ pub const State = opaque {
 
     // coroutine functions
 
+    /// [-?, +?, -] Yields a coroutine. This function MUST only be used as a tailcall.
+    ///
+    /// The running coroutine suspends it's execution and the call to `State.resume` that started this coroutine
+    /// returns. The parameter `nresults` is the number of values from the stack that are passed as results to
+    /// `State.resume`.
     pub fn yield(L: *State, nresults: Size) c_int {
         if (c.LUA_VERSION_NUM >= 503) {
             _ = c.lua_yieldk(to(L), nresults, 0, null);
@@ -1136,6 +1417,16 @@ pub const State = opaque {
         return c.lua_yield(to(L), nresults);
     }
 
+    /// [-?, +?, -] Starts or resumes a coroutine in the given thread.
+    ///
+    /// This call returns when the coroutine suspends or finishes its execution. When it returns, the stack contains
+    /// all values passed to `yield`, or all values returned by the body function. This function returns `.yield` if
+    /// the coroutine yields, `.ok` if the coroutine finishes its execution without errors, or an error code in case
+    /// of errors (see `ThreadStatus`).
+    ///
+    /// In case of errors, the stack is not unwound, so you can use the debug API over it. The error object is on the top of the stack.
+    ///
+    /// To resume a coroutine, you remove any results from the last `yield`, put on its stack only the values to be passed as results from yield, and then call `resume.
     pub fn @"resume"(L: *State, nargs: Size) ThreadStatus {
         if (c.LUA_VERSION_NUM >= 504) {
             var res: c_int = 0;
@@ -1149,6 +1440,10 @@ pub const State = opaque {
         return @enumFromInt(c.lua_resume(to(L), nargs));
     }
 
+    /// [-0, +0, -] Returns the status of the thread `L`.
+    ///
+    /// You can only call functions in threads with status `.ok`.
+    /// You can only resume threads with status `.ok` or `.yield`.
     pub fn status(L: *State) ThreadStatus {
         return @enumFromInt(c.lua_status(to(L)));
     }
@@ -1161,19 +1456,28 @@ pub const State = opaque {
 
     // miscellaneous functions
 
-    pub fn @"error"(L: *State) noreturn {
+    /// [-1, +0, v] Generates a Lua error, using the value at the top of the stack as the error object.
+    pub fn throw(L: *State) noreturn {
         _ = c.lua_error(to(L));
         unreachable;
     }
 
+    /// [-1, +(2|0), e] Pops a key from the stack, and pushes a key–value pair from the table at the given index
+    /// (the "next" pair after the given key). If there are no more elements in the table, then `next` returns 0 and
+    /// pushes nothing.
     pub fn next(L: *State, index: Index) bool {
         return c.lua_next(to(L), index) != 0;
     }
 
+    /// [-n, +1, e] Concatenates the `n` values at the top of the stack, pops them, and leaves the result at the top.
+    ///
+    /// Concatenation is performed following the usual semantics of Lua.
     pub fn concat(L: *State, items: Size) void {
         return c.lua_concat(to(L), items);
     }
 
+    /// [-0, +1, -] Pushes the length of the value at the given index onto the stack. It is equivalent to the '#'
+    /// operator in Lua.
     pub fn len(L: *State, index: Index) void {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.lua_len(to(L), index);
@@ -1187,38 +1491,92 @@ pub const State = opaque {
                 return L.pushinteger(@intCast(c.lua_objlen(to(L), index)));
             },
             .userdata => if (!L.callmeta(index, "__len")) {
-                L.throw("attempt to get length of a userdata value", .{});
+                L.raise("attempt to get length of a userdata value", .{});
             },
-            else => L.throw("attempt to get length of a %s value", .{L.typenameof(index)}),
+            else => L.raise("attempt to get length of a %s value", .{L.typenameof(index)}),
         }
     }
 
     // debug api
 
+    /// [-0, +0, -] Gets information about the interpreter runtime stack.
+    ///
+    /// This function fills parts of a `DebugInfo` struct with an identification of the activation record of the
+    /// function executing at a given level.
+    ///
+    /// Level 0 is the current running function, whereas level `n+1` is the function that has called level `n`.
+    /// Returns false if the given level is greater than the current stack depth.
     pub fn getstack(L: *State, level: Size, ar: *DebugInfo) bool {
         return c.lua_getstack(to(L), level, ar) != 0;
     }
 
+    /// [-(0|1), +(0|1|2), e] Gets information about a specific function or function invocation.
+    ///
+    /// To get information about a function invokation, `ar` must be a valid activation record that was filled by a
+    /// previous call to `State.getstack` or given as argument to a hook.
+    ///
+    /// If the first character of `what` is `>`, the function is popped from the stack.
+    ///
+    /// The following values of `what` are valid:
+    /// - 'n': fills in the field `name` and `namewhat`.
+    /// - 'S': fills in the fields `source`, `short_src`, `linedefined`, `lastlinedefined`, and `what`.
+    /// - 'l': fills in the field `currentline`.
+    /// - 't': fills in the field `istailcall` [Lua 5.2+].
+    /// - 'u': fills in the field `nups`, `nparams` [Lua 5.2+], and `isvararg` [Lua 5.2+].
+    /// - 'f': pushes onto the stack the function that is running at the given level.
+    /// - 'L': pushes onto the stack a table whose indices are the numbers of the lines that are valid on the
+    ///        function. (A valid line is a line with some associated code, that is, a line where you can put a break
+    ///        point. Non-valid lines include empty lines and comments.).
+    ///
+    /// If `f` and `L` are provided, the function is pushed first.`
+    ///
+    /// Returns `false` on error (such as an invalid option in `what`).
     pub fn getinfo(L: *State, what: [:0]const u8, ar: *DebugInfo) bool {
         return c.lua_getinfo(to(L), what.ptr, ar) != 0;
     }
 
-    pub fn getlocal(L: *State, ar: *DebugInfo, n: Size) [:0]const u8 {
+    /// [-0, +(1|0), -] Gets information about a local variable of a given activation record.
+    ///
+    /// Pushes the value on the stack and return's it's name.
+    ///
+    /// The parameter `ar` must be a valid activation record that was filled by a previous call to `State.getstack`
+    /// or given as argument to a hook. The index `n` selects which local variable to inspect (1 is the first parameter or active local variable).
+    ///
+    /// Returns null and pushes nothing if the index is greater than the number of active local variables.
+    pub fn getlocal(L: *State, ar: *DebugInfo, n: Size) ?[:0]const u8 {
         const ptr = c.lua_getlocal(to(L), ar, n);
+        if (ptr == null) return null;
         return std.mem.sliceTo(ptr, 0);
     }
 
-    pub fn setlocal(L: *State, ar: *DebugInfo, n: Size) [:0]const u8 {
+    /// [-(1|0), +0, -] Sets the value of a local variable of a given activation record.
+    ///
+    /// Pops the value from the stack and sets it as the new value of the local variable.
+    ///
+    /// The parameter `ar` must be a valid activation record that was filled by a previous call to `State.getstack`
+    /// or given as argument to a hook. The index `n` selects which local variable to inspect (1 is the first parameter or active local variable).
+    ///
+    /// Returns null and pops nothing if the index is greater than the number of active local variables.
+    pub fn setlocal(L: *State, ar: *DebugInfo, n: Size) ?[:0]const u8 {
         const ptr = c.lua_setlocal(to(L), ar, n);
+        if (ptr == null) return null;
         return std.mem.sliceTo(ptr, 0);
     }
 
+    /// [-0, +(0|1), -] Gets information about the n-th upvalues of the closure at index `funcindex`. It pushes the
+    /// upvalue's value onto the stack and returns its name. Returns null and pushes nothing if there is no upvalue with the given index.
+    ///
+    /// Upvalues are numbered in an arbitrary order. Upvalues for C closures all have a name of empty string `""`.
     pub fn getupvalue(L: *State, funcindex: Index, n: Size) ?[:0]const u8 {
         const ptr = c.lua_getupvalue(to(L), funcindex, n);
         if (ptr == null) return null;
         return std.mem.sliceTo(ptr, 0);
     }
 
+    /// [-(0|1), +0, -] Sets the value of the n-th upvalue of the closure at index `funcindex`. It assigns the value
+    /// at the top of the stack to the upvalue and returns its name. It also pops the value from the stack.
+    ///
+    /// Returns null and pops nothing if there is no upvalue with the given index.
     pub fn setupvalue(L: *State, funcindex: Index, n: Size) ?[:0]const u8 {
         const ptr = c.lua_setupvalue(to(L), funcindex, n);
         if (ptr == null) return null;
@@ -1228,24 +1586,45 @@ pub const State = opaque {
     // upvalueid unimplementable in 5.3 and 5.2 and 5.1
     // upvaluejoin unimplementable in 5.3 and 5.2 and 5.1
 
+    // TODO: better binding for hook
+    /// [-0, +0, -] Sets the debugging hook function. `func` is the function to be called. `mask` specifies on which
+    /// events the hook will be called, and `count` is the only used with LUA_MASKCOUNT.
+    ///
+    /// Each event is described below:
+    /// - call: called when the interpreter calls a functions, just after Lua enters the function, but before the
+    ///   function gets it's arguments.
+    /// - return: called when the interpreter returns from a function. The hook is called just before Lua leaves the
+    ///   function. You have no access to the values to be returned by the function.
+    /// - line: called when the interpreter is about to start the execution of a new line of code, or when it jumps
+    ///   back in the code (even to the same line). (This event only happens while Lua is executing a Lua function.)
+    /// - count: called after the interpreter executes every `count` instructions. (This event only happens while Lua
+    ///   is executing a Lua function.)
+    ///
+    /// If `mask` is zero, the debug hook is disabled.
     pub fn sethook(L: *State, func: HookFn, mask: c_int, count: Size) void {
         _ = c.lua_sethook(to(L), func, mask, count);
     }
 
+    /// [-0, +0, -] Returns the current hook function.
     pub fn gethook(L: *State) HookFn {
         return c.lua_gethook(to(L));
     }
 
+    /// [-0, +0, -] Returns the current hook mask.
     pub fn gethookmask(L: *State) c_int {
         return c.lua_gethookmask(to(L));
     }
 
+    /// [-0, +0, -] Returns the current hook count.
     pub fn gethookcount(L: *State) Size {
         return @intCast(c.lua_gethookcount(to(L)));
     }
 
     // auxiliary library
 
+    /// [-0, +(0|1), m] Pushes onto the stack the field `event` from the metatable of the object at index `obj` and
+    /// returns the type of the pushed value. If the object does not have a metatable, or if the metatable does not
+    /// have this field, pushes nothing and returns `.nil`.
     pub fn getmetafield(L: *State, obj: Index, event: [:0]const u8) Type {
         if (c.LUA_VERSION_NUM >= 503) {
             return @enumFromInt(c.luaL_getmetafield(to(L), obj, event.ptr));
@@ -1258,6 +1637,10 @@ pub const State = opaque {
         return L.typeof(-1);
     }
 
+    /// [-0, +(0|1), e] Calls a metamethod. If the object at index `obj` has a metatable and this metatable has a
+    /// field `event`, this function calls this field passing the object as its only argument. In this case this
+    /// function returns true and pushes onto the stack the value returned by the call. If there is no metatable or
+    /// no metamethod, this function returns false (without pushing any value on the stack).
     pub fn callmeta(L: *State, obj: Index, event: [:0]const u8) bool {
         return c.luaL_callmeta(to(L), obj, event.ptr) != 0;
     }
@@ -1273,25 +1656,33 @@ pub const State = opaque {
     // checktype replaced with check mechanism
     // checkany replaced with check mechanism
 
+    /// [-0, +0, v] Checks whether the function argument `arg` has type `typ`.
     pub fn ensuretype(L: *State, arg: Size, typ: Type) void {
         c.luaL_checktype(to(L), arg, @intFromEnum(typ));
     }
 
+    /// [-0, +0, v] Checks whether the function argument `arg` exists, even if it is nil.
     pub fn ensureexists(L: *State, arg: Size) void {
         c.luaL_checkany(to(L), arg);
     }
 
-    /// Grows the stack size to top + sz elements, raising an error if the stack
-    /// cannot grow to that size. msg is an additional text to go into the error
-    /// message.
+    /// [-0, +0, v] Grows the stack size to `top + sz` elements, raising an error if the stack cannot grow to that
+    /// size. msg is an additional text to go into the error message.
     pub fn ensurestack(L: *State, sz: Size, msg: [:0]const u8) void {
         c.luaL_checkstack(to(L), sz, msg.ptr);
     }
 
+    /// [-0, +1, m] If the registry already has the key `tname`, return false. Otherwise creates a new table to be
+    /// used as a metatable for userdata, adds to this new table the pair `__name = tname`, adds the table to the
+    /// registry under the key `tname` and returns true.
+    ///
+    /// In both cases pushes the final value associated with `tname` in the registry.
     pub fn newmetatablefor(L: *State, tname: [:0]const u8) bool {
         return c.luaL_newmetatable(to(L), tname.ptr) != 0;
     }
 
+    /// [-0, +0, -] Sets the metatable of the object at the top of the stack as the metatable associated with name
+    /// `tname` in the registry
     pub fn setmetatablefor(L: *State, tname: [:0]const u8) void {
         if (c.LUA_VERSION_NUM >= 502) {
             c.luaL_setmetatable(to(L), tname.ptr);
@@ -1304,20 +1695,25 @@ pub const State = opaque {
     // testudata replaced with userdata mechanism
     // checkudata replaced with userdata mechanism
 
+    /// [-0, +1, m] Pushes onto the stack a string identifying the current position of the control at level lvl in the call stack. Typically this string has the following format:
+    ///
+    ///    chunkname:currentline:
+    ///
+    /// Level 0 is the running function, level 1 is the function that called the running function, etc.
+    /// This function is used to build a prefix for error messages.
     pub fn where(L: *State, lvl: Size) void {
         c.luaL_where(to(L), lvl);
     }
 
-    /// Raises an error. The error message format is given by fmt plus any extra
-    /// arguments, following the same rules of lua_pushfstring. It also adds at
-    /// the beginning of the message the file name and the line number where the
-    /// error occurred, if this information is available.
-    pub fn throw(L: *State, msg: [:0]const u8, args: anytype) noreturn {
+    /// [-0, +0, v] Raises an error. The error message format is given by fmt plus any extra arguments, following
+    /// the same rules of `pushfstring`. It also adds at the beginning of the message the file name and the line
+    /// number where the error occurred, if this information is available.
+    pub fn raise(L: *State, msg: [:0]const u8, args: anytype) noreturn {
         if (args.len == 0) {
             L.where(1);
             L.pushstring(msg);
             L.concat(2);
-            L.@"error"();
+            L.throw();
         } else {
             const ArgsTuple = std.meta.Tuple(blk: {
                 var types: [args.len]type = undefined;
@@ -1351,16 +1747,29 @@ pub const State = opaque {
 
     // checkoption replaced with check mechanism
 
+    /// [-1, +0, m] Creates and returns a reference, in the table at index t, for the object at the top of the stack
+    /// (and pops the object).
+    ///
+    /// A reference is a unique integer key. As long as you do not manually add integer keys into table t, `ref`
+    /// ensures the uniqueness of the key it returns. You can retrieve an object referred by reference r by calling
+    /// `L.rawgeti(t, r)`. Function `unref` frees a reference and its associated object.
+    ///
+    /// If the object at the top of the stack is nil, luaL_ref returns the constant `State.refnil`. The constant
+    /// `State.noref` is guaranteed to be different from any reference returned by `ref`.
     pub fn ref(L: *State, t: Index) c_int {
         return c.luaL_ref(to(L), t);
     }
 
+    /// [-0, +0, -] Releases reference refi from the table at index t (see `ref`). The entry is removed from the
+    /// table, so that the referred object can be collected. The reference refi is also freed to be used again.
     pub fn unref(L: *State, t: Index, refi: c_int) void {
         c.luaL_unref(to(L), t, refi);
     }
 
     // TODO: loadfile
 
+    /// [-0, +1, -] Loads a string as a Lua chunk. This function uses `load` to load the chunk, so all caveats about
+    /// that function apply.
     pub fn loadstring(L: *State, str: []const u8, chunkname: [:0]const u8, mode: LoadMode) ThreadStatus {
         if (c.LUA_VERSION_NUM >= 502) {
             return @enumFromInt(c.luaL_loadbufferx(
@@ -1379,12 +1788,16 @@ pub const State = opaque {
         return @enumFromInt(c.luaL_loadbuffer(to(L), str.ptr, str.len, chunkname));
     }
 
-    pub fn newstate() !*State {
+    /// [-0, +0, -] Creates a new Lua state with a default allocator function and panic function.
+    pub fn init() !*State {
         const ret = c.luaL_newstate();
         if (ret == null) return error.OutOfMemory;
         return @ptrCast(ret.?);
     }
 
+    /// [-0, +0, e] Returns the "length" of the value at the given index as a number; it is equivalent to the '#'
+    /// operator in Lua. Raises an error if the result of the operation is not an integer. (This case only can
+    /// happen through metamethods.)
     pub fn lenof(L: *State, obj: Index) Size {
         if (c.LUA_VERSION_NUM >= 502) {
             return @intCast(c.luaL_len(to(L), obj));
@@ -1396,12 +1809,16 @@ pub const State = opaque {
         return @intCast(n);
     }
 
+    /// [-0, +1, m] Creates a copy of string `s` by replacing any occurrence of the string `p` with the string `r`.
+    /// Pushes the resulting string on the stack and returns it.
     pub fn gsub(L: *State, s: [:0]const u8, p: [:0]const u8, r: [:0]const u8) [:0]const u8 {
         return std.mem.sliceTo(c.luaL_gsub(to(L), s.ptr, p.ptr, r.ptr), 0);
     }
 
     // TODO: setfuncs
 
+    /// [-0, +1, e] Ensures that the value t[fname], where t is the value at index idx, is a table, and pushes that
+    /// table onto the stack. Returns true if it finds a previous table there and false if it creates a new table.
     pub fn getsubtable(L: *State, t: Index, fname: [:0]const u8) bool {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.luaL_getsubtable(to(L), t, fname.ptr) != 0;
@@ -1418,6 +1835,8 @@ pub const State = opaque {
         return true;
     }
 
+    /// [-0, +1, m] Creates and pushes a traceback of the stack `target`. If msg is not null it is appended at the
+    /// beginning of the traceback. The level parameter tells at which level to start the traceback.
     pub fn traceback(L: *State, target: *State, msg: ?[:0]const u8, level: Size) void {
         if (c.LUA_VERSION_NUM >= 502) {
             c.luaL_traceback(to(L), to(target), if (msg) |m| m.ptr else null, level);
@@ -1458,6 +1877,13 @@ pub const State = opaque {
         }
     }
 
+    /// [-0, +1, e] If `module` is not already present in package.loaded, calls function openf with string `module`
+    /// as an argument and sets the call result in package.loaded[module], as if that function has been called
+    /// through require.
+    ///
+    /// If `global` is true, also stores the module into global `module`.
+    ///
+    /// Leaves a copy of the module on the stack.
     pub fn requiref(L: *State, module: [:0]const u8, openf: CFn, global: bool) void {
         if (c.LUA_VERSION_NUM >= 503) {
             c.luaL_requiref(to(L), module, openf, @intFromBool(global));
@@ -1487,20 +1913,36 @@ pub const State = opaque {
         L.pop(2);
     }
 
+    /// [-0, +0, -] Returns the name of the type of the value at the given index.
     pub fn typenameof(L: *State, idx: Index) [:0]const u8 {
         return @tagName(L.typeof(idx));
     }
 
+    /// [-0, +1, m] Pushes onto the stack the metatable associated with name tname in the registry (see
+    /// `newmetatableFor`) or nil if there is no metatable associated with that name. Returns the type of the pushed
+    /// value.
     pub fn getmetatablefor(L: *State, tname: [:0]const u8) Type {
         return L.getfield(REGISTRYINDEX, tname);
     }
 
+    /// [-0, +0, e] Opens all standard Lua libraries into the given state.
     pub fn openlibs(L: *State) void {
         c.luaL_openlibs(to(L));
     }
 
     // convienience functions
 
+    /// [-0, +1, m] Pushes the given value onto the stack.
+    ///
+    /// Slices, arrays, vectors and tuples are pushed as a sequence (a table with sequential integer keys).
+    /// Packed structs are pushed as their integer backed value.
+    /// Normal and extern structs are pushed as a table.
+    /// Enums are pushed as their integer value.
+    /// Errors and enum literals are pushed as their name as a string.
+    /// Unions are pushed as a table with a single key-value pair.
+    /// Functions are pushed as a closure.
+    /// Enums and ErrorSet *types* are pushed as a sequence of their fields.
+    /// Struct *types* are pushed as a table with their public declarations as key-value pairs.
     pub fn push(L: *State, value: anytype) void {
         const T = @TypeOf(value);
         switch (@typeInfo(T)) {
@@ -1611,6 +2053,7 @@ pub const State = opaque {
         return 1;
     }
 
+    /// [-0, +1, m] Registers a resource type with the given metatable.
     pub fn registerResource(L: *State, comptime T: type, comptime metatable: ?type) void {
         const tname = literal(@typeName(T));
 
@@ -1639,6 +2082,9 @@ pub const State = opaque {
         L.pop(1);
     }
 
+    /// [-0, +1, m] Creates a new resource of the given type.
+    ///
+    /// `registerResource` must be called ((with this type) before this function.
     pub fn resource(L: *State, comptime T: type) *align(@alignOf(usize)) T {
         const tname = literal(@typeName(T));
 
@@ -1651,11 +2097,15 @@ pub const State = opaque {
         return @ptrCast(@alignCast(ptr));
     }
 
+    /// [-0, +2, m] Pushes a `nil, string` pair onto the stack representing the given zig error.
     pub fn pusherror(L: *State, err: anyerror) void {
         L.pushnil();
         L.pushstring(@errorName(err));
     }
 
+    /// [-0, +1, m] Returns a `Value` with the type and value of the value at the given index.
+    ///
+    /// This does not hold a reference to the value, so it may be collected at *any* time after `index` is popped.
     pub fn pull(L: *State, index: Index) Value {
         const T = L.typeof(index);
 
@@ -1677,21 +2127,21 @@ pub const State = opaque {
         const message = source ++ ": expected " ++ expected ++ ", got %s";
         const stripped = if (source.len == 0) message[2..] else message[0..];
         _ = L.pushfstring(stripped, .{L.typenameof(index).ptr});
-        L.@"error"();
+        L.throw();
     }
 
     fn check_strerror(L: *State, comptime source: []const u8, comptime expected: []const u8, str: [:0]const u8) noreturn {
         const message = source ++ ": expected " ++ expected ++ ", got %s";
         const stripped = if (source.len == 0) message[2..] else message[0..];
         _ = L.pushfstring(stripped, .{str.ptr});
-        L.@"error"();
+        L.throw();
     }
 
     fn check_numerror(L: *State, comptime source: []const u8, comptime expected: []const u8, num: Integer) noreturn {
         const message = source ++ ": expected " ++ expected ++ ", got %d";
         const stripped = if (source.len == 0) message[2..] else message[0..];
         _ = L.pushfstring(stripped, .{num});
-        L.@"error"();
+        L.throw();
     }
 
     fn checkInternal(L: *State, comptime name: []const u8, comptime T: type, idx: Index, allocator: anytype) T {
@@ -1772,7 +2222,7 @@ pub const State = opaque {
 
                         const str = L.tolstring(idx) orelse unreachable;
                         return allocator.dupe(str) catch
-                            L.throw("out of memory", .{});
+                            L.raise("out of memory", .{});
                     }
 
                     return L.tolstring(idx) orelse unreachable;
@@ -1795,7 +2245,7 @@ pub const State = opaque {
 
                         const slen = L.lenof(idx);
                         const ptr = allocator.allocWithOptions(info.child, slen, info.alignment, sentinel) catch
-                            L.throw("out of memory", .{});
+                            L.raise("out of memory", .{});
 
                         for (ptr[0..], 0..) |*slot, i| {
                             _ = L.rawgeti(idx, @as(Integer, @intCast(i)) + 1);
@@ -1827,22 +2277,32 @@ pub const State = opaque {
         }
     }
 
+    /// [-0, +0, v] Checks that the value at the given index is of the given type. Returns the value.
+    ///
+    /// Cannot be called on a non-const string type or any non-string slice type, as they require allocation.
     pub fn check(L: *State, comptime T: type, idx: Index) T {
         return L.checkInternal("", T, idx, null);
     }
 
+    /// [-0, +0, v] Checks that the value at the given index is of the given type. Returns the value. Allows for
+    /// types that require allocation.
     pub fn checkAlloc(L: *State, comptime T: type, idx: Index, allocator: Allocator) T {
         return L.checkInternal("", T, idx, allocator);
     }
 
+    /// [-0, +0, v] Checks that the value at the given index is of the given resource type. Returns a pointer to the
+    /// resource.
     pub fn checkResource(L: *State, comptime T: type, arg: Index) *align(@alignOf(usize)) T {
         const ptr = c.luaL_checkudata(to(L), arg, literal(@typeName(T))).?;
         return @ptrCast(@alignCast(ptr));
     }
 };
 
-pub fn wrapAnyFn(func: anytype) State.CFn {
-    if (@TypeOf(func) == State.CFn) return func;
+/// Wraps any zig function to be used as a Lua C function.
+///
+/// Arguments will be checked using `State.check`. Follows the same rules as `wrapCFn`.
+pub fn wrapAnyFn(func: anytype) CFn {
+    if (@TypeOf(func) == CFn) return func;
 
     const I = @typeInfo(@TypeOf(func));
     const info = if (I == .Fn) I else @typeInfo(@typeInfo(@TypeOf(func)).Pointer.child).Fn;
@@ -1865,8 +2325,12 @@ pub fn wrapAnyFn(func: anytype) State.CFn {
     }.wrapped);
 }
 
-pub fn wrapCFn(func: anytype) State.CFn {
-    if (@TypeOf(func) == State.CFn) return func;
+/// Wraps a zig-like Lua function (with a `*State` as its first argument) to be used as a Lua C function.
+///
+/// If the function returns `c_int`, it will be returned unmodified.
+/// Return values will be pushed using `State.push`.
+pub fn wrapCFn(func: anytype) CFn {
+    if (@TypeOf(func) == CFn) return func;
 
     const I = @typeInfo(@TypeOf(func));
     const info = if (I == .Fn) I else @typeInfo(@typeInfo(@TypeOf(func)).Pointer.child).Fn;
@@ -1911,6 +2375,9 @@ pub fn wrapCFn(func: anytype) State.CFn {
 }
 
 const Allocator = std.mem.Allocator;
+
+/// Wraps a zig allocator to be used as a Lua allocator. This function should be used as the allocator function.
+/// The zig allocation should be passed as the `ud` argument to `initWithAlloc`.
 pub fn luaAlloc(ud: ?*anyopaque, ptr: ?*anyopaque, oldsize: usize, newsize: usize) callconv(.C) ?*anyopaque {
     assert(ud != null);
 
@@ -1943,13 +2410,7 @@ pub fn luaAlloc(ud: ?*anyopaque, ptr: ?*anyopaque, oldsize: usize, newsize: usiz
     return new_ptr.ptr;
 }
 
-/// Wraps a std.io.Reader to be used as a Lua reader function.
-///
-/// Should be used as follows:
-/// ```zig
-/// var lua_reader = try luaReader(reader);
-/// L.load(lua_reader, "test.lua");
-/// ```
+/// The type of a wrapped std.io.Reader that can be passed as a Lua reader.
 pub fn LuaReader(comptime Reader: anytype) type {
     return struct {
         const Self = @This();
@@ -1969,7 +2430,7 @@ pub fn LuaReader(comptime Reader: anytype) type {
             }
 
             size.?.* = wrapper.reader.read(wrapper.buf[0..]) catch |err| {
-                L.throw(@errorName(err), .{});
+                L.raise(@errorName(err), .{});
             };
 
             return &wrapper.buf;
@@ -1979,14 +2440,21 @@ pub fn LuaReader(comptime Reader: anytype) type {
         buf: [c.BUFSIZ]u8 = undefined,
 
         has_byte: bool = false,
-        mode: State.LoadMode,
+        mode: LoadMode,
     };
 }
 
+/// Wraps a std.io.Reader to be used as a Lua reader function.
+///
+/// Should be used as follows:
+/// ```zig
+/// var lua_reader = try luaReader(reader);
+/// L.load(lua_reader, "test.lua");
+/// ```
 pub fn luaReader(reader: anytype) !LuaReader(@TypeOf(reader)) {
     const byte = try reader.readByte();
 
-    const mode: State.LoadMode = switch (byte) {
+    const mode: LoadMode = switch (byte) {
         c.LUA_SIGNATURE[0] => .binary,
         else => .text,
     };
@@ -1998,13 +2466,7 @@ pub fn luaReader(reader: anytype) !LuaReader(@TypeOf(reader)) {
     return wrapper;
 }
 
-/// Wraps a std.io.Writer to be used as a Lua writer function.
-///
-/// Should be used as follows:
-/// ```zig
-/// var lua_writer = LuaWriter(@TypeOf(writer)){ .writer = writer };
-/// L.dump(lua_writer.write, &lua_writer);
-/// ```
+/// The type of a wrapped std.io.Writer that can be passed as a Lua writer.
 pub fn LuaWriter(comptime Writer: anytype) type {
     return struct {
         const Self = @This();
@@ -2018,7 +2480,7 @@ pub fn LuaWriter(comptime Writer: anytype) type {
             const ptr: [*]const u8 = @ptrCast(p.?);
 
             wrapper.writer.writeAll(ptr[0..sz]) catch |err| {
-                L.throw(@errorName(err), .{});
+                L.raise(@errorName(err), .{});
             };
 
             return 0;
@@ -2028,11 +2490,18 @@ pub fn LuaWriter(comptime Writer: anytype) type {
     };
 }
 
+/// Wraps a std.io.Writer to be used as a Lua writer function.
+///
+/// Should be used as follows:
+/// ```zig
+/// var lua_writer = LuaWriter(@TypeOf(writer)){ .writer = writer };
+/// L.dump(lua_writer.write, &lua_writer);
+/// ```
 pub fn luaWriter(writer: anytype) LuaWriter(@TypeOf(writer)) {
     return LuaWriter(@TypeOf(writer)){ .writer = writer };
 }
 
-pub fn exportAs(comptime func: anytype, comptime name: []const u8) State.CFn {
+pub fn exportAs(comptime func: anytype, comptime name: []const u8) CFn {
     return struct {
         fn luaopen(L: ?*c.lua_State) callconv(.C) c_int {
             const fnc = comptime wrapCFn(func) orelse unreachable;
@@ -2046,10 +2515,17 @@ pub fn exportAs(comptime func: anytype, comptime name: []const u8) State.CFn {
     }.luaopen;
 }
 
+/// A Lua string buffer
+///
+/// During its normal operation, a string buffer uses a variable number of stack slots. So, while using a buffer,
+/// you cannot assume that you know where the top of the stack is. You can use the stack between successive calls to
+/// buffer operations as long as that use is balanced; that is, when you call a buffer operation, the stack is at
+/// the same level it was immediately after the previous buffer operation.
 pub const Buffer = struct {
     state: *State,
     buf: c.luaL_Buffer,
 
+    /// [-0, +0, -] Initializes a buffer B. This function does not allocate any space.
     pub fn init(L: *State) Buffer {
         var res: Buffer = undefined;
         res.state = L;
@@ -2060,6 +2536,8 @@ pub const Buffer = struct {
         return res;
     }
 
+    /// [-?, +?, m] Returns a slice of memory of at *most* `max_size` bytes where you can copy a string to be added
+    /// to the buffer (see `commit`).
     pub fn reserve(buffer: *Buffer, max_size: usize) []u8 {
         const ptr = if (c.LUA_VERSION_NUM >= 502)
             c.luaL_prepbuffsize(&buffer.buf, max_size)
@@ -2074,6 +2552,8 @@ pub const Buffer = struct {
         return ptr[0..clamped_len];
     }
 
+    /// [-?, +?, -] Adds to the buffer a string of length `size` that had previously been copied into the buffer
+    /// area provided by `reserve`.
     pub fn commit(buffer: *Buffer, size: usize) void {
         // TODO: translate-c bug: c.luaL_addsize(&buffer.buf, size);
         if (c.LUA_VERSION_NUM >= 502) {
@@ -2083,24 +2563,29 @@ pub const Buffer = struct {
         }
     }
 
+    /// [-?, +?, m] Adds the byte `char` to the buffer.
     pub fn addchar(buffer: *Buffer, char: u8) void {
         const str = buffer.reserve(1);
         str[0] = char;
         buffer.commit(1);
     }
 
+    /// [-?, +?, m] Adds the string `str` to the buffer.
     pub fn addstring(buffer: *Buffer, str: []const u8) void {
         c.luaL_addlstring(&buffer.buf, str.ptr, str.len);
     }
 
+    /// [-1, +?, m] Adds the value at the top of the stack to the buffer. Pops the value.
     pub fn addvalue(buffer: *Buffer) void {
         c.luaL_addvalue(&buffer.buf);
     }
 
+    /// [-?, +1, m] Finishes the use of buffer B leaving the final string on the top of the stack.
     pub fn final(buffer: *Buffer) void {
         c.luaL_pushresult(&buffer.buf);
     }
 
+    /// A Lua writer function that can be used to write to a string buffer.
     pub fn write(L_opt: ?*c.lua_State, p: ?[*]const u8, sz: usize, ud: ?*anyopaque) callconv(.C) c_int {
         _ = L_opt;
         assert(ud != null);
@@ -2113,13 +2598,21 @@ pub const Buffer = struct {
     }
 };
 
+/// A debug utility to ensure that the stack is in the expected state after a function call.
+/// 
+/// Does nothing when `std.debug.runtime_safety` is false.
 pub const StackCheck = struct {
-    top: if (std.debug.runtime_safety) State.Index else void,
+    top: if (std.debug.runtime_safety) Index else void,
 
+    /// [-0, +0, -] Initializes a stack check. The top of the stack will be saved as the "base".
     pub fn init(L: *State) StackCheck {
         return .{ .top = if (std.debug.runtime_safety) L.gettop() else {} };
     }
 
+    /// [-0, +0, v] Checks that the stack is in the expected state. If it is not, an error is thrown with debug 
+    /// information if available from the given function (by probing for debug info in the binary).
+    /// 
+    /// A negative value for `pushed` means that `abs(pushed)` items have been popped.
     pub fn check(self: StackCheck, comptime func: anytype, L: *State, pushed: c_int) c_int {
         if (!std.debug.runtime_safety) return;
 
@@ -2134,13 +2627,13 @@ pub const StackCheck = struct {
                 defer symbol_info.deinit(debug_info.allocator);
 
                 if (symbol_info.line_info) |info| {
-                    L.throw("stack check failed in %s at %s:%d (expected %d items but %d were pushed)", .{ symbol_info.symbol_name, info.file_name, info.line, pushed, new_top - self.top });
+                    L.raise("stack check failed in %s at %s:%d (expected %d items but %d were pushed)", .{ symbol_info.symbol_name, info.file_name, info.line, pushed, new_top - self.top });
                 }
 
-                L.throw("stack check failed in %s (expected %d items but %d were pushed)", .{ symbol_info.symbol_name, pushed, new_top - self.top });
+                L.raise("stack check failed in %s (expected %d items but %d were pushed)", .{ symbol_info.symbol_name, pushed, new_top - self.top });
             }
 
-            L.throw("stack check failed (expected %d items but %d were pushed)", .{ pushed, new_top - self.top });
+            L.raise("stack check failed (expected %d items but %d were pushed)", .{ pushed, new_top - self.top });
         }
 
         return pushed;
