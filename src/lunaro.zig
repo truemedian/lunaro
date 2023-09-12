@@ -59,8 +59,8 @@ const arith_functions = struct {
 
             return a <= b;
         } else if (Ta == .string and Tb == .string) {
-            const a = L.tolstring(A).?;
-            const b = L.tolstring(B).?;
+            const a = L.tostring(A).?;
+            const b = L.tostring(B).?;
 
             return std.mem.order(u8, a, b) != .gt;
         }
@@ -793,9 +793,9 @@ pub const State = opaque {
         return c.lua_toboolean(to(L), index) != 0;
     }
 
-    /// [-0, +0, m] Converts the Lua value at the given index to a string. If the value is a number, then tolstring
+    /// [-0, +0, m] Converts the Lua value at the given index to a string. If the value is a number, then tostring
     /// also changes the actual value in the stack to a string (which will confuse `next`).
-    pub fn tolstring(L: *State, index: Index) ?[:0]const u8 {
+    pub fn tostring(L: *State, index: Index) ?[:0]const u8 {
         var ptr_len: usize = undefined;
         const ptr = c.lua_tolstring(to(L), index, &ptr_len);
         if (ptr == null) return null;
@@ -969,7 +969,7 @@ pub const State = opaque {
         }
 
         c.lua_pushlstring(to(L), value.ptr, value.len);
-        return L.tolstring(-1).?;
+        return L.tostring(-1).?;
     }
 
     /// [-0, +1, e] Pushes onto the stack a formatted string and returns a pointer to this string.
@@ -2115,7 +2115,7 @@ pub const State = opaque {
             .boolean => return .{ .boolean = L.toboolean(index) },
             .lightuserdata => return .{ .lightuserdata = L.touserdata(anyopaque, index).? },
             .number => return .{ .number = L.tonumber(index) },
-            .string => return .{ .string = L.tolstring(index).? },
+            .string => return .{ .string = L.tostring(index).? },
             .table => return .table,
             .function => return .{ .function = L.tocfunction(index) },
             .userdata => return .{ .userdata = L.touserdata(anyopaque, index).? },
@@ -2172,7 +2172,7 @@ pub const State = opaque {
                 if (info.child == u8 and L.isstring(idx)) {
                     const err_len = comptime comptimePrint("string of length {d}", .{info.len});
 
-                    const str = L.tolstring(idx).?;
+                    const str = L.tostring(idx).?;
                     if (str.len != info.len)
                         L.check_numerror(name, err_len, @intCast(str.len));
 
@@ -2220,12 +2220,12 @@ pub const State = opaque {
                     if (!info.is_const) {
                         if (allocator == null) @compileError("cannot allocate non-const string, use checkAlloc instead");
 
-                        const str = L.tolstring(idx) orelse unreachable;
+                        const str = L.tostring(idx) orelse unreachable;
                         return allocator.dupe(str) catch
                             L.raise("out of memory", .{});
                     }
 
-                    return L.tolstring(idx) orelse unreachable;
+                    return L.tostring(idx) orelse unreachable;
                 }
 
                 switch (info.size) {
@@ -2267,7 +2267,7 @@ pub const State = opaque {
                     const value = @as(info.tag_type, @intCast(L.tointeger(idx)));
                     return @enumFromInt(value);
                 } else if (L.isstring(idx)) {
-                    const value = L.tolstring(idx) orelse unreachable;
+                    const value = L.tostring(idx) orelse unreachable;
 
                     return std.meta.stringToEnum(T, value) orelse
                         L.check_strerror(name, "member of " ++ @typeName(T), value);
