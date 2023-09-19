@@ -1,10 +1,16 @@
 
 # Lunaro
 
+[![Linux Workflow Status](https://img.shields.io/github/actions/workflow/status/truemedian/lunaro/linux.yml?style=for-the-badge&label=Linux)](https://github.com/truemedian/hzzp/actions/workflows/linux.yml)
+
 Bindings to the [Lua](https://www.lua.org/) C API.
 
 The primary goal of Lunaro to provide a stable, agnostic, and idiomatic interface to the Lua C API.
 Code using Lunaro can link against any Lua >= 5.1 library and work without issue.
+
+## Documentation
+
+Documentation is available at [pages.truemedian.me/lunaro](https://pages.truemedian.me/lunaro/#A;lunaro).
 
 ## Installation
 
