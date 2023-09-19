@@ -1622,6 +1622,26 @@ pub const State = opaque {
 
     // auxiliary library
 
+    /// [-0, +0, v] Checks whether the code making the call and the Lua library being called are using the same version
+    /// of Lua and the same numeric types. 
+    pub fn checkversion(L: *State) void {
+        if (c.LUA_VERSION_NUM >= 502) {
+            return c.luaL_checkversion(to(L));
+        }
+
+        if (L.loadstring("return _VERSION", "lunaro/checkversion", .either) != .ok or L.pcall(0, 1, 0) != .ok) {
+            L.raise("lua core does not expose version information, cannot assume compatability", .{});
+        }
+
+        if (L.tostring(-1)) |core_version| {
+            if (!std.mem.eql(u8, core_version, c.LUA_VERSION)) {
+                L.raise("version mismatch: app needs %s, Lua core provides %s", .{ c.LUA_VERSION, core_version });
+            }
+        }
+
+        L.pop(1);
+    }
+
     /// [-0, +(0|1), m] Pushes onto the stack the field `event` from the metatable of the object at index `obj` and
     /// returns the type of the pushed value. If the object does not have a metatable, or if the metatable does not
     /// have this field, pushes nothing and returns `.nil`.
@@ -2501,6 +2521,8 @@ pub fn luaWriter(writer: anytype) LuaWriter(@TypeOf(writer)) {
     return LuaWriter(@TypeOf(writer)){ .writer = writer };
 }
 
+/// Export a zig function as the entry point of a Lua module. This wraps the function and exports it as
+/// `luaopen_{name}`.
 pub fn exportAs(comptime func: anytype, comptime name: []const u8) CFn {
     return struct {
         fn luaopen(L: ?*c.lua_State) callconv(.C) c_int {
@@ -2599,7 +2621,7 @@ pub const Buffer = struct {
 };
 
 /// A debug utility to ensure that the stack is in the expected state after a function call.
-/// 
+///
 /// Does nothing when `std.debug.runtime_safety` is false.
 pub const StackCheck = struct {
     top: if (std.debug.runtime_safety) Index else void,
@@ -2609,9 +2631,9 @@ pub const StackCheck = struct {
         return .{ .top = if (std.debug.runtime_safety) L.gettop() else {} };
     }
 
-    /// [-0, +0, v] Checks that the stack is in the expected state. If it is not, an error is thrown with debug 
+    /// [-0, +0, v] Checks that the stack is in the expected state. If it is not, an error is thrown with debug
     /// information if available from the given function (by probing for debug info in the binary).
-    /// 
+    ///
     /// A negative value for `pushed` means that `abs(pushed)` items have been popped.
     pub fn check(self: StackCheck, comptime func: anytype, L: *State, pushed: c_int) c_int {
         if (!std.debug.runtime_safety) return;

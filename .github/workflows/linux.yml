@@ -24,5 +24,17 @@ jobs:
       - name: Install Lua
         run: sudo apt-get install liblua5.1-dev liblua5.2-dev liblua5.3-dev liblua5.4-dev libluajit-5.1-dev
 
-      - name: Test
-        run: zig build test
+      - name: Test Lua 5.1
+        run: zig build test -Dlua=lua51
+        
+      - name: Test Lua 5.2
+        run: zig build test -Dlua=lua52
+
+      - name: Test Lua 5.3
+        run: zig build test -Dlua=lua53
+
+      - name: Test Lua 5.4
+        run: zig build test -Dlua=lua54
+        
+      - name: Test Luajit
+        run: zig build test -Dlua=luajit
