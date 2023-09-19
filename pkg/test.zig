@@ -4,12 +4,7 @@ const lunaro = @import("lunaro");
 const expect = std.testing.expect;
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer if (gpa.deinit() == .leak) std.os.exit(1);
-
-    var allocator = gpa.allocator();
-
-    const L = try lunaro.State.initWithAlloc(lunaro.luaAlloc, @ptrCast(&allocator));
+    const L = try lunaro.State.init();
     defer L.close();
 
     L.checkversion();
