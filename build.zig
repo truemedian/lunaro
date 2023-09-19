@@ -14,6 +14,11 @@ pub fn build(b: *std.Build) void {
     const strip = b.option(bool, "strip", "Strip debug information from static lua builds") orelse true;
     const requested_lua = b.option(LuaVersion, "lua", "Version of lua to build against");
 
+    const compat52 = b.option(bool, "compat52", "Luajit only. Enable Lua 5.2 compat") orelse true;
+    const disable_ffi = b.option(bool, "disable-ffi", "Luajit only. Disable FFI") orelse false;
+    const disable_jit = b.option(bool, "disable-jit", "Luajit only. Disable JIT") orelse false;
+    const disable_gc64 = b.option(bool, "disable-gc64", "Luajit only. Disable GC64") orelse false;
+
     const module = b.addModule("lunaro", .{
         .source_file = .{ .path = "src/lunaro.zig" },
     });
@@ -23,7 +28,12 @@ pub fn build(b: *std.Build) void {
         const test_step = b.step("test", "Run tests");
 
         const lua_library = switch (req_lua) {
-            .luajit => makeLuajit(b, target, optimize),
+            .luajit => makeLuajit(b, target, optimize, .{
+                .compat52 = compat52,
+                .disable_ffi = disable_ffi,
+                .disable_jit = disable_jit,
+                .disable_gc64 = disable_gc64,
+            }),
             inline else => |t| makeLua(b, @tagName(t), target, optimize),
         };
 
@@ -135,7 +145,14 @@ fn makeLua(b: *std.Build, comptime lua: []const u8, target: std.zig.CrossTarget,
     return lua_library;
 }
 
-fn makeLuajit(b: *std.Build, target: std.zig.CrossTarget, optimize: std.builtin.OptimizeMode) *std.Build.Step.Compile {
+const LuajitOptions = struct {
+    compat52: bool,
+    disable_ffi: bool,
+    disable_jit: bool,
+    disable_gc64: bool,
+};
+
+fn makeLuajit(b: *std.Build, target: std.zig.CrossTarget, optimize: std.builtin.OptimizeMode, options: LuajitOptions) *std.Build.Step.Compile {
     const minilua = b.addExecutable(.{
         .name = "minilua",
         .optimize = .ReleaseSafe,
@@ -215,6 +232,18 @@ fn makeLuajit(b: *std.Build, target: std.zig.CrossTarget, optimize: std.builtin.
     buildvm_exe.addIncludePath(FixIncludePath.init(b, luajit_h));
     buildvm_exe.addIncludePath(FixIncludePath.init(b, buildvm_arch_header));
     buildvm_exe.addIncludePath(.{ .path = "pkg/luajit/src" });
+
+    if (options.compat52)
+        buildvm_exe.defineCMacro("LUAJIT_ENABLE_LUA52COMPAT", null);
+
+    if (options.disable_ffi)
+        buildvm_exe.defineCMacro("LUAJIT_DISABLE_FFI", null);
+
+    if (options.disable_jit)
+        buildvm_exe.defineCMacro("LUAJIT_DISABLE_JIT", null);
+
+    if (options.disable_gc64)
+        buildvm_exe.defineCMacro("LUAJIT_DISABLE_GC64", null);
 
     if (target.isWindows()) {
         buildvm_exe.defineCMacro("LUAJIT_OS", "LUAJIT_OS_WINDOWS");
@@ -361,6 +390,18 @@ fn makeLuajit(b: *std.Build, target: std.zig.CrossTarget, optimize: std.builtin.
             .flags = &.{},
         });
     }
+
+    if (options.compat52)
+        luajit_library.defineCMacro("LUAJIT_ENABLE_LUA52COMPAT", null);
+
+    if (options.disable_ffi)
+        luajit_library.defineCMacro("LUAJIT_DISABLE_FFI", null);
+
+    if (options.disable_jit)
+        luajit_library.defineCMacro("LUAJIT_DISABLE_JIT", null);
+
+    if (options.disable_gc64)
+        luajit_library.defineCMacro("LUAJIT_DISABLE_GC64", null);
 
     b.installArtifact(luajit_library);
 

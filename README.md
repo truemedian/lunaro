@@ -30,7 +30,30 @@ Add lunaro to your list of dependencies in `build.zig.zon` by adding it to the l
 
 The following sections contain code for a `build.zig` for the different ways to link against Lua.
 
+### As a Library
+
+First, link against Lua dynamically (as seen in the [Dynamic Linking](#dynamic-linking) section).
+
+Then add the following to your library:
+
+```zig
+const lunaro = @import("lunaro");
+
+...
+
+fn mylibrary(L: *lunaro.State) c_int {
+    ...
+}
+
+comptime {
+    _ = lunaro.exportAs(mylibrary, "mylibrary");
+}
+```
+
+This exports the `mylibrary` function (following `lunaro.wrapFn` rules) as `luaopen_mylibrary` so that it can be required from lua.
+
 ### Dynamic Linking
+
 
 ```zig
 const lunaro = b.dependency("lunaro", .{});

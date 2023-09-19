@@ -4,11 +4,22 @@ const root = @import("root");
 const assert = std.debug.assert;
 const comptimePrint = std.fmt.comptimePrint;
 
+const luaconf = @cImport({
+    @cInclude("luaconf.h");
+});
+
+const is_luajit = @hasDecl(luaconf, "LUA_LJDIR");
+
 const c = @cImport({
     @cInclude("lua.h");
     @cInclude("lauxlib.h");
     @cInclude("lualib.h");
+
+    if (is_luajit)
+        @cInclude("luajit.h");
 });
+
+
 
 fn literal(comptime str: []const u8) [:0]const u8 {
     return (str ++ "\x00")[0..str.len :0];
@@ -1629,6 +1640,10 @@ pub const State = opaque {
     pub fn checkversion(L: *State) void {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.luaL_checkversion(to(L));
+        }
+
+        if (is_luajit) {
+            return c.LUAJIT_VERSION_SYM();
         }
 
         if (L.loadstring("return _VERSION", "lunaro/checkversion", .either) != .ok or L.pcall(0, 1, 0) != .ok) {
