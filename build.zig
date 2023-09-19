@@ -10,7 +10,7 @@ const LuaVersion = enum {
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSafe });
+    const debug = b.option(bool, "debug", "Create a debug build of lua") orelse true;
     const strip = b.option(bool, "strip", "Strip debug information from static lua builds") orelse true;
     const requested_lua = b.option(LuaVersion, "lua", "Version of lua to build against");
 
@@ -18,6 +18,7 @@ pub fn build(b: *std.Build) void {
         .source_file = .{ .path = "src/lunaro.zig" },
     });
 
+    const optimize: std.builtin.OptimizeMode = if (debug) .Debug else .ReleaseSafe;
     if (requested_lua) |req_lua| {
         const test_step = b.step("test", "Run tests");
 
@@ -313,7 +314,7 @@ fn makeLuajit(b: *std.Build, target: std.zig.CrossTarget, optimize: std.builtin.
 
     const real_optimize = if (optimize == .Debug) .ReleaseSafe else optimize;
     const luajit_library = b.addStaticLibrary(.{
-        .name = "luajit",
+        .name = "lua",
         .target = target,
         .optimize = real_optimize,
     });

@@ -541,6 +541,8 @@ pub const State = opaque {
     // state manipulation
 
     /// [-0, +0, -] Creates a new Lua state. Allows for custom allocation functions.
+    /// 
+    /// This function **WILL NOT** work on Luajit on a 64 bit target.
     pub fn initWithAlloc(f: AllocFn, ud: ?*anyopaque) !*State {
         const ret = c.lua_newstate(f, ud);
         if (ret == null) return error.OutOfMemory;

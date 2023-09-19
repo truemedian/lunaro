@@ -22,6 +22,36 @@ Add lunaro to your list of dependencies in `build.zig.zon` by adding it to the l
 }
 ```
 
+The following sections contain code for a `build.zig` for the different ways to link against Lua.
+
+### Dynamic Linking
+
+```zig
+const lunaro = b.dependency("lunaro", .{});
+
+exe.addModule(lunaro.module("lunaro"));
+
+exe.linkSystemLibrary("lua"); // or whatever the name of the lua library is under pkg-config
+
+// if pkg-config isn't available, you'll need to add the include path and library path manually
+// exe.addIncludePath("/usr/include/lua5.3"); // this directory should contain lua.h
+// exe.addLibraryPath("/usr/lib/lua5.3"); // this directory should contain the required liblua.so
+// exe.linkLibrary("lua5.3"); // this should be the name of the lua library to link against
+```
+
+### Static Linking
+
+```zig
+const lunaro = b.dependency("lunaro", .{
+    .lua = .lua51, // request the version of lua here, valid values are: lua51, lua52, lua53, lua54, luajit
+    // .strip = true, // strip all debug information from the lua library
+    // .target = ... // build lua for a non-native target
+});
+
+exe.linkLibrary(lunaro.artifact("lua"));
+exe.addModule(lunaro.module("lunaro"));
+```
+
 ## Differences
 
 For the most part, Lunaro's API is close to the Lua C API with a few exceptions.  
