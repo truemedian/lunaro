@@ -8,7 +8,7 @@ const luaconf = @cImport({
     @cInclude("luaconf.h");
 });
 
-const is_luajit = @hasDecl(luaconf, "LUA_LJDIR");
+pub const is_luajit = @hasDecl(luaconf, "LUA_LJDIR");
 
 const c = @cImport({
     @cInclude("lua.h");
@@ -1640,10 +1640,6 @@ pub const State = opaque {
     pub fn checkversion(L: *State) void {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.luaL_checkversion(to(L));
-        }
-
-        if (is_luajit) {
-            return c.LUAJIT_VERSION_SYM();
         }
 
         if (L.loadstring("return _VERSION", "lunaro/checkversion", .either) != .ok or L.pcall(0, 1, 0) != .ok) {
