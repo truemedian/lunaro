@@ -54,6 +54,7 @@ This exports the `mylibrary` function (following `lunaro.wrapFn` rules) as `luao
 
 ### Dynamic Linking
 
+#### Using System Libraries
 
 ```zig
 const lunaro = b.dependency("lunaro", .{});
@@ -68,6 +69,19 @@ exe.linkSystemLibrary("lua"); // or whatever the name of the lua library is unde
 // exe.linkLibrary("lua5.3"); // this should be the name of the lua library to link against
 ```
 
+#### Using a compiled dynamic library
+
+```zig
+const lunaro = b.dependency("lunaro", .{
+    .lua = .lua51, // request the version of lua here, valid values are: lua51, lua52, lua53, lua54, luajit
+    // .strip = true, // strip all debug information from the lua library
+    // .target = ... // build lua for a non-native target
+});
+
+exe.linkLibrary(lunaro.artifact("lua-shared"));
+exe.addModule(lunaro.module("lunaro"));
+```
+
 ### Static Linking
 
 ```zig
@@ -77,7 +91,7 @@ const lunaro = b.dependency("lunaro", .{
     // .target = ... // build lua for a non-native target
 });
 
-exe.linkLibrary(lunaro.artifact("lua"));
+exe.linkLibrary(lunaro.artifact("lua-static"));
 exe.addModule(lunaro.module("lunaro"));
 ```
 

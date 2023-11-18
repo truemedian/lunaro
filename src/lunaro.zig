@@ -2338,7 +2338,7 @@ pub fn wrapAnyFn(func: anytype) CFn {
     if (@TypeOf(func) == CFn) return func;
 
     const I = @typeInfo(@TypeOf(func));
-    const info = if (I == .Fn) I else @typeInfo(@typeInfo(@TypeOf(func)).Pointer.child).Fn;
+    const info = if (I == .Fn) I.Fn else @typeInfo(@typeInfo(@TypeOf(func)).Pointer.child).Fn;
     if (info.params.len == 1 and info.params[0].type.? == *State) {
         return wrapCFn(func);
     }
@@ -2366,7 +2366,7 @@ pub fn wrapCFn(func: anytype) CFn {
     if (@TypeOf(func) == CFn) return func;
 
     const I = @typeInfo(@TypeOf(func));
-    const info = if (I == .Fn) I else @typeInfo(@typeInfo(@TypeOf(func)).Pointer.child).Fn;
+    const info = if (I == .Fn) I.Fn else @typeInfo(@typeInfo(@TypeOf(func)).Pointer.child).Fn;
     return struct {
         fn wrapped(L_opt: ?*c.lua_State) callconv(.C) c_int {
             const L: *State = @ptrCast(L_opt.?);

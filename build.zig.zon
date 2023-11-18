@@ -2,4 +2,14 @@
     .name = "lunaro",
     .description = "Bindings to the Lua C API",
     .version = "0.1.0",
+    .paths = .{
+        "src",
+        "pkg",
+    },
+    .dependencies = .{
+        .luajit = .{
+            .url = "git+https://github.com/Luajit/Luajit#69bbbf77363ceb00ad2653a7729a5c9e8316e61f",
+            .hash = "1220840e37428c41dec6efad38ade6be18c0f6d1f9128ad61026f8bde07fe895d241",
+        },
+    },
 }
