@@ -19,8 +19,6 @@ const c = @cImport({
         @cInclude("luajit.h");
 });
 
-
-
 fn literal(comptime str: []const u8) [:0]const u8 {
     return (str ++ "\x00")[0..str.len :0];
 }
@@ -497,37 +495,6 @@ pub const LoadMode = enum {
     either,
 };
 
-/// A union of the possible Lua types, mostly used for debugging.
-pub const Value = union(Type) {
-    none,
-    nil,
-    boolean: bool,
-    lightuserdata: *anyopaque,
-    number: Number,
-    string: [:0]const u8,
-    table,
-    function: CFn,
-    userdata: *anyopaque,
-    thread: *State,
-
-    pub fn format(value: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt;
-
-        switch (value) {
-            .none => return std.fmt.formatBuf("TValue{ .none }", options, writer),
-            .nil => return std.fmt.formatBuf("TValue{ .nil }", options, writer),
-            .boolean => return std.fmt.format(writer, "TValue{{ .boolean = {} }}", .{value.boolean}),
-            .lightuserdata => return std.fmt.format(writer, "TValue{{ .lightuserdata = {x} }}", .{@intFromPtr(value.lightuserdata)}),
-            .number => return std.fmt.format(writer, "TValue{{ .number = {d} }}", .{value.number}),
-            .string => return std.fmt.format(writer, "TValue{{ .string = '{'}' }}", .{std.zig.fmtEscapes(value.string)}),
-            .table => return std.fmt.formatBuf("TValue{ .table }", options, writer),
-            .function => return std.fmt.format(writer, "TValue{{ .function = {?x} }}", .{@intFromPtr(value.function)}),
-            .userdata => return std.fmt.format(writer, "TValue{{ .userdata = {x} }}", .{@intFromPtr(value.userdata)}),
-            .thread => return std.fmt.format(writer, "TValue{{ .thread = {x} }}", .{@intFromPtr(value.thread)}),
-        }
-    }
-};
-
 /// An opaque type representing a Lua thread. This is the only way to access or manipulate the Lua state.
 ///
 /// Stack Documentation follows the Lua format: [-o, +p, x]
@@ -552,7 +519,7 @@ pub const State = opaque {
     // state manipulation
 
     /// [-0, +0, -] Creates a new Lua state. Allows for custom allocation functions.
-    /// 
+    ///
     /// This function **WILL NOT** work on Luajit on a 64 bit target.
     pub fn initWithAlloc(f: AllocFn, ud: ?*anyopaque) !*State {
         const ret = c.lua_newstate(f, ud);
@@ -1636,7 +1603,7 @@ pub const State = opaque {
     // auxiliary library
 
     /// [-0, +0, v] Checks whether the code making the call and the Lua library being called are using the same version
-    /// of Lua and the same numeric types. 
+    /// of Lua and the same numeric types.
     pub fn checkversion(L: *State) void {
         if (c.LUA_VERSION_NUM >= 502) {
             return c.luaL_checkversion(to(L));
@@ -1978,6 +1945,9 @@ pub const State = opaque {
     /// Struct *types* are pushed as a table with their public declarations as key-value pairs.
     pub fn push(L: *State, value: anytype) void {
         const T = @TypeOf(value);
+        if (T == Value)
+            return value.push(L);
+
         switch (@typeInfo(T)) {
             .Void, .Null => L.pushnil(),
             .Bool => L.pushboolean(value),
@@ -2136,68 +2106,102 @@ pub const State = opaque {
         L.pushstring(@errorName(err));
     }
 
-    /// [-0, +1, m] Returns a `Value` with the type and value of the value at the given index.
-    ///
-    /// This does not hold a reference to the value, so it may be collected at *any* time after `index` is popped.
-    pub fn pull(L: *State, index: Index) Value {
-        const T = L.typeof(index);
-
-        switch (T) {
-            .none => return .none,
-            .nil => return .nil,
-            .boolean => return .{ .boolean = L.toboolean(index) },
-            .lightuserdata => return .{ .lightuserdata = L.touserdata(anyopaque, index).? },
-            .number => return .{ .number = L.tonumber(index) },
-            .string => return .{ .string = L.tostring(index).? },
-            .table => return .table,
-            .function => return .{ .function = L.tocfunction(index) },
-            .userdata => return .{ .userdata = L.touserdata(anyopaque, index).? },
-            .thread => return .{ .thread = L.tothread(index).? },
+    fn check_typeerror(L: *State, srcloc: ?std.builtin.SourceLocation, label: ?[]const u8, comptime source: []const u8, comptime expected: []const u8, index: Index) noreturn {
+        var to_concat: u8 = 0;
+        if (srcloc) |src| {
+            _ = L.pushfstring("%s[%s]:%d:%d: ", .{ src.file, src.fn_name, src.line, src.column });
+            to_concat += 1;
         }
-    }
 
-    fn check_typeerror(L: *State, comptime source: []const u8, comptime expected: []const u8, index: Index) noreturn {
-        const message = source ++ ": expected " ++ expected ++ ", got %s";
-        const stripped = if (source.len == 0) message[2..] else message[0..];
-        _ = L.pushfstring(stripped, .{L.typenameof(index).ptr});
+        if (label) |lbl| {
+            _ = L.pushfstring("(%s) ", .{lbl});
+            to_concat += 1;
+        }
+
+        if (source.len > 0) {
+            _ = L.pushfstring("%s: ", .{literal(source)});
+            to_concat += 1;
+        }
+
+        _ = L.pushfstring("expected " ++ expected ++ ", got %s", .{L.typenameof(index).ptr});
+
+        if (to_concat > 0)
+            L.concat(to_concat + 1);
+
         L.throw();
     }
 
-    fn check_strerror(L: *State, comptime source: []const u8, comptime expected: []const u8, str: [:0]const u8) noreturn {
-        const message = source ++ ": expected " ++ expected ++ ", got %s";
-        const stripped = if (source.len == 0) message[2..] else message[0..];
-        _ = L.pushfstring(stripped, .{str.ptr});
+    fn check_strerror(L: *State, srcloc: ?std.builtin.SourceLocation, label: ?[]const u8, comptime source: []const u8, comptime expected: []const u8, str: [:0]const u8) noreturn {
+        var to_concat: u8 = 0;
+        if (srcloc) |src| {
+            _ = L.pushfstring("%s[%s]:%d:%d: ", .{ src.file, src.fn_name, src.line, src.column });
+            to_concat += 1;
+        }
+
+        if (label) |lbl| {
+            _ = L.pushfstring("(%s) ", .{lbl});
+            to_concat += 1;
+        }
+
+        if (source.len > 0) {
+            _ = L.pushfstring("%s: ", .{literal(source)});
+            to_concat += 1;
+        }
+
+        _ = L.pushfstring("expected " ++ expected ++ ", got %s", .{str.ptr});
+
+        if (to_concat > 0)
+            L.concat(to_concat + 1);
+
         L.throw();
     }
 
-    fn check_numerror(L: *State, comptime source: []const u8, comptime expected: []const u8, num: Integer) noreturn {
-        const message = source ++ ": expected " ++ expected ++ ", got %d";
-        const stripped = if (source.len == 0) message[2..] else message[0..];
-        _ = L.pushfstring(stripped, .{num});
+    fn check_numerror(L: *State, srcloc: ?std.builtin.SourceLocation, label: ?[]const u8, comptime source: []const u8, comptime expected: []const u8, num: Integer) noreturn {
+        var to_concat: u8 = 0;
+        if (srcloc) |src| {
+            _ = L.pushfstring("%s[%s]:%d:%d: ", .{ src.file, src.fn_name, src.line, src.column });
+            to_concat += 1;
+        }
+
+        if (label) |lbl| {
+            _ = L.pushfstring("(%s) ", .{lbl});
+            to_concat += 1;
+        }
+
+        if (source.len > 0) {
+            _ = L.pushfstring("%s: ", .{literal(source)});
+            to_concat += 1;
+        }
+
+        _ = L.pushfstring("expected " ++ expected ++ ", got %d", .{num});
+
+        if (to_concat > 0)
+            L.concat(to_concat + 1);
+
         L.throw();
     }
 
-    fn checkInternal(L: *State, comptime name: []const u8, comptime T: type, idx: Index, allocator: anytype) T {
+    fn checkInternal(L: *State, srcloc: ?std.builtin.SourceLocation, label: ?[]const u8, comptime name: []const u8, comptime T: type, idx: Index, allocator: anytype) T {
         switch (@typeInfo(T)) {
             .Bool => {
                 if (!L.isboolean(idx))
-                    L.check_typeerror(name, "boolean", idx);
+                    L.check_typeerror(srcloc, label, name, "boolean", idx);
 
                 return L.toboolean(idx);
             },
             .Int => {
                 if (!L.isinteger(idx))
-                    L.check_typeerror(name, "integer", idx);
+                    L.check_typeerror(srcloc, label, name, "integer", idx);
 
                 const err_range = comptime comptimePrint("number in range [{d}, {d}]", .{ std.math.minInt(T), std.math.maxInt(T) });
 
                 const num = L.tointeger(idx);
                 return std.math.cast(T, num) orelse
-                    L.check_numerror(name, err_range, num);
+                    L.check_numerror(srcloc, label, name, err_range, num);
             },
             .Float => {
                 if (!L.isnumber(idx))
-                    L.check_typeerror(name, "number", idx);
+                    L.check_typeerror(srcloc, label, name, "number", idx);
 
                 return @floatCast(L.tonumber(idx));
             },
@@ -2207,25 +2211,25 @@ pub const State = opaque {
 
                     const str = L.tostring(idx).?;
                     if (str.len != info.len)
-                        L.check_numerror(name, err_len, @intCast(str.len));
+                        L.check_numerror(srcloc, label, name, err_len, @intCast(str.len));
 
                     return str[0..info.len].*;
                 }
 
                 if (!L.istable(idx))
-                    L.check_typeerror(name, "table", idx);
+                    L.check_typeerror(srcloc, label, name, "table", idx);
 
                 const err_len = comptime comptimePrint("table of length {d}", .{info.len});
 
                 const tlen = L.lenof(idx);
                 if (tlen != info.len)
-                    L.check_numerror(name, err_len, tlen);
+                    L.check_numerror(srcloc, label, name, err_len, tlen);
 
                 var res: T = undefined;
 
                 for (res[0..], 0..) |*slot, i| {
                     _ = L.rawgeti(idx, @as(Integer, @intCast(i)) + 1);
-                    slot.* = L.checkInternal(name ++ "[]", info.child, -1, allocator);
+                    slot.* = L.checkInternal(srcloc, label, name ++ "[]", info.child, -1, allocator);
                 }
 
                 L.pop(info.len);
@@ -2233,13 +2237,13 @@ pub const State = opaque {
             },
             .Struct => |info| {
                 if (!L.istable(idx))
-                    L.check_typeerror(name, "table", idx);
+                    L.check_typeerror(srcloc, label, name, "table", idx);
 
                 var res: T = undefined;
 
                 inline for (info.fields) |field| {
                     _ = L.getfield(idx, literal(field.name));
-                    @field(res, field.name) = L.checkInternal(name ++ "." ++ field.name, field.type, -1, allocator);
+                    @field(res, field.name) = L.checkInternal(srcloc, label, name ++ "." ++ field.name, field.type, -1, allocator);
                 }
 
                 L.pop(info.fields.len);
@@ -2248,7 +2252,7 @@ pub const State = opaque {
             .Pointer => |info| {
                 if (comptime std.meta.trait.isZigString(T)) {
                     if (!L.isstring(idx))
-                        L.check_typeerror(name, "string", idx);
+                        L.check_typeerror(srcloc, label, name, "string", idx);
 
                     if (!info.is_const) {
                         if (allocator == null) @compileError("cannot allocate non-const string, use checkAlloc instead");
@@ -2264,13 +2268,13 @@ pub const State = opaque {
                 switch (info.size) {
                     .One, .Many, .C => {
                         if (!L.isuserdata(idx))
-                            L.check_typeerror(name, "userdata", idx);
+                            L.check_typeerror(srcloc, label, name, "userdata", idx);
 
                         return @ptrCast(L.touserdata(idx).? orelse unreachable);
                     },
                     .Slice => {
                         if (!L.istable(idx))
-                            L.check_typeerror(name, "table", idx);
+                            L.check_typeerror(srcloc, label, name, "table", idx);
 
                         if (allocator == null) @compileError("cannot allocate slice, use checkAlloc instead");
 
@@ -2282,7 +2286,7 @@ pub const State = opaque {
 
                         for (ptr[0..], 0..) |*slot, i| {
                             _ = L.rawgeti(idx, @as(Integer, @intCast(i)) + 1);
-                            slot.* = L.checkInternal(name ++ "[]", info.child, -1, allocator);
+                            slot.* = L.checkInternal(srcloc, label, name ++ "[]", info.child, -1, allocator);
                         }
 
                         L.pop(slen);
@@ -2293,7 +2297,7 @@ pub const State = opaque {
             .Optional => |info| {
                 if (L.isnoneornil(idx)) return null;
 
-                return L.checkInternal(name ++ ".?", info.child, idx, allocator);
+                return L.checkInternal(srcloc, label, name ++ ".?", info.child, idx, allocator);
             },
             .Enum => |info| {
                 if (L.isnumber(idx)) {
@@ -2303,11 +2307,19 @@ pub const State = opaque {
                     const value = L.tostring(idx) orelse unreachable;
 
                     return std.meta.stringToEnum(T, value) orelse
-                        L.check_strerror(name, "member of " ++ @typeName(T), value);
-                } else L.check_typeerror(name, "number or string", idx);
+                        L.check_strerror(srcloc, label, name, "member of " ++ @typeName(T), value);
+                } else L.check_typeerror(srcloc, label, name, "number or string", idx);
             },
             else => @compileError("check not implemented for " ++ @typeName(T)),
         }
+    }
+
+    pub fn checkAdvanced(L: *State, srcloc: std.builtin.SourceLocation, label: ?[]const u8, comptime T: type, idx: Index, allocator: ?Allocator) T {
+        _ = label;
+        _ = srcloc;
+        _ = allocator;
+        _ = idx;
+        _ = L;
     }
 
     /// [-0, +0, v] Checks that the value at the given index is of the given type. Returns the value.
@@ -2672,6 +2684,208 @@ pub const StackCheck = struct {
         }
 
         return pushed;
+    }
+};
+
+// Extra Stuff
+
+/// A union of the possible Lua types, mostly used for debugging.
+pub const Value = union(enum) {
+    nil,
+    boolean: bool,
+    number: Number,
+    integer: Integer,
+    string: [:0]const u8,
+    table: Table,
+    function: Function,
+    userdata: *anyopaque,
+    lightuserdata: *anyopaque,
+
+    pub fn format(value: Value, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+
+        switch (value) {
+            .nil => return std.fmt.formatBuf("nil", options, writer),
+            .boolean => return std.fmt.format(writer, "{}", .{value.boolean}),
+            .number, .integer => |num| return std.fmt.format(writer, "{d}", .{num}),
+            .string => return std.fmt.format(writer, "'{'}'", .{std.zig.fmtEscapes(value.string)}),
+            .function => return std.fmt.format(writer, "function: 0x{?x}", .{@intFromPtr(value.function)}),
+            .table => return std.fmt.format(writer, "table: 0x{x}", .{@intFromPtr(value.table)}),
+            .lightuserdata, .userdata => |ptr| return std.fmt.format(writer, "userdata: 0x{x}", .{@intFromPtr(ptr)}),
+        }
+    }
+
+    /// [-0, +0, -] Returns a value representation of the current value, and stores a reference to that value if necessary
+    pub fn init(L: *State, index: Index) !Value {
+        const T = L.typeof(-1);
+
+        switch (T) {
+            .none, .nil => return .{ .nil = {} },
+            .boolean => return .{ .boolean = L.toboolean(index) },
+            .lightuserdata => return .{ .lightuserdata = L.touserdata(index).? },
+            .number => if (L.isinteger(index))
+                return .{ .integer = L.tointeger(index) }
+            else
+                return .{ .number = L.tonumber(index) },
+            .string => return .{ .string = L.tostring(index).? },
+            .table => return .{ .table = try Table.init(L, index) },
+            .function => return .{ .function = try Function.init(L, index) },
+            .userdata => return .{ .userdata = L.touserdata(index).? },
+            .thread => return error.NotImplemented,
+        }
+    }
+
+    /// [-0, +1, -] Pushes this value onto the stack.
+    pub fn push(value: Value, L: *State) void {
+        switch (value) {
+            .nil => L.pushnil(),
+            .boolean => |v| L.pushboolean(v),
+            .number => |v| L.pushnumber(v),
+            .integer => |v| L.pushinteger(v),
+            .string => |v| L.pushstring(v),
+            .table => |v| v.push(L),
+            .function => {},
+            .userdata => {},
+            .lightuserdata => |v| L.pushlightuserdata(v),
+        }
+    }
+};
+
+pub const Table = struct {
+    state: *State,
+    ref: Index,
+
+    pub fn init(L: *State, index: Index) !Table {
+        if (L.typeof(index) != .table)
+            return error.NotATable;
+
+        L.pushvalue(index);
+        return .{ .ref = L.ref(REGISTRYINDEX), .state = L };
+    }
+
+    pub fn deinit(table: Table) void {
+        table.state.unref(REGISTRYINDEX, table.ref);
+    }
+
+    /// [-0, +1, m] Pushes this table onto the stack of `to`.
+    pub fn push(table: Table, to: *State) void {
+        table.state.geti(REGISTRYINDEX, table.ref);
+
+        if (to != table.state)
+            table.state.xmove(to, 1);
+    }
+
+    /// [-0, +1, e] Gets the value at the given key in this table and pushes it onto the stack.
+    pub fn get(table: Table, key: anytype) void {
+        table.state.geti(REGISTRYINDEX, table.ref);
+        table.state.push(key);
+        table.state.gettable(-2);
+        table.state.remove(-2);
+    }
+
+    /// [-0, +0, e] Gets the value at the given key in this table as a Value.
+    pub fn getValue(table: Table, key: anytype) Value {
+        table.get(key);
+        defer table.state.pop(1);
+
+        return Value.init(table.state, -1);
+    }
+
+    /// [-1, +0, e] Sets the value at the given key in this table with the value at the top of the stack.
+    pub fn set(table: Table, key: anytype) void {
+        table.state.geti(REGISTRYINDEX, table.ref);
+        table.state.push(key);
+        table.state.rotate(-3, -1);
+        table.state.settable(-3);
+        table.state.pop(1);
+    }
+
+    /// [-0, +0, e] Sets the value at the given key in this table.
+    pub fn setValue(table: Table, key: anytype, value: anytype) void {
+        table.state.geti(REGISTRYINDEX, table.ref);
+        table.state.push(key);
+        table.state.push(value);
+        table.state.settable(-3);
+        table.state.pop(1);
+    }
+};
+
+pub const Function = struct {
+    state: *State,
+    ref: Index,
+
+    pub fn init(L: *State, index: Index) !Function {
+        if (L.typeof(index) != .function)
+            return error.NotAFunction;
+
+        L.pushvalue(index);
+        return .{ .ref = L.ref(REGISTRYINDEX), .state = L };
+    }
+
+    pub fn deinit(func: Function) void {
+        func.state.unref(REGISTRYINDEX, func.ref);
+    }
+
+    pub const ReturnType = union(enum) {
+        /// Drop all return values.
+        none,
+
+        /// Return a single Value of the first return.
+        value,
+
+        /// Return the number of return values left on the stack.
+        all,
+
+        /// Return a tuple of the given types.
+        many: []const type,
+    };
+
+    fn MakeCallReturn(comptime ret: ReturnType) type {
+        switch (ret) {
+            .none => return void,
+            .value => return Value,
+            .all => return Index,
+            .many => |v| return std.meta.Tuple(v),
+        }
+    }
+
+    pub fn call(func: Function, args: anytype, comptime returns: ReturnType) MakeCallReturn(returns) {
+        const prev_top = func.state.gettop();
+
+        func.state.geti(REGISTRYINDEX, func.ref);
+
+        inline for (args) |arg| {
+            func.state.push(arg);
+        }
+
+        var ret: MakeCallReturn(returns) = undefined;
+        const num_returns = switch (returns) {
+            .none => return 0,
+            .value => return 1,
+            .all => return null,
+            .many => returns.many.len,
+        };
+
+        func.state.call(args.len, num_returns);
+
+        switch (returns) {
+            .none => return,
+            .value => {
+                defer func.state.pop(1);
+
+                return Value.init(func.state, -1);
+            },
+            .all => return func.state.gettop() - prev_top,
+            .many => {
+                defer func.state.pop(returns.many.len);
+
+                inline for (returns.many, 0..) |T, i| {
+                    ret[i] = func.state.check(T, prev_top + i + 1);
+                }
+
+                return ret;
+            },
+        }
     }
 };
 
