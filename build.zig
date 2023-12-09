@@ -44,6 +44,8 @@ pub fn build(b: *std.Build) void {
             .disable_gc64 = disable_gc64,
         });
 
+        b.installArtifact(lua_shared);
+
         const lua_static = b.addStaticLibrary(.{
             .name = "lua-static",
             .optimize = optimize,
@@ -63,6 +65,8 @@ pub fn build(b: *std.Build) void {
             .disable_jit = disable_jit,
             .disable_gc64 = disable_gc64,
         });
+
+        b.installArtifact(lua_static);
 
         {
             const test_static_exe = b.addTest(.{
