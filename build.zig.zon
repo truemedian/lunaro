@@ -5,6 +5,10 @@
     .paths = .{
         "src",
         "pkg",
+        "build.zig",
+        "build.zig.zon",
+        "README.md",
+        "LICENSE",
     },
     .dependencies = .{
         .luajit = .{
