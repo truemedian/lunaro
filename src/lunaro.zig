@@ -1,14 +1,14 @@
 const std = @import("std");
-const root = @import("root");
 
 const assert = std.debug.assert;
 const comptimePrint = std.fmt.comptimePrint;
 
 const luaconf = @cImport({
+    @cDefine("luajit_c", "1");
     @cInclude("luaconf.h");
 });
 
-pub const is_luajit = @hasDecl(luaconf, "LUA_LJDIR");
+pub const is_luajit = @hasDecl(luaconf, "LUA_PROGNAME") and std.mem.eql(u8, luaconf.LUA_PROGNAME, "luajit");
 
 const c = @cImport({
     @cInclude("lua.h");
@@ -512,8 +512,7 @@ pub const LoadMode = enum {
 ///   - 'v' means the function may raise an error on purpose.
 pub const State = opaque {
     fn to(ptr: *State) *c.lua_State {
-        var x: *c.lua_State = @ptrCast(ptr);
-        return x;
+        return @ptrCast(ptr);
     }
 
     // state manipulation
@@ -1954,7 +1953,7 @@ pub const State = opaque {
             .Int, .ComptimeInt => L.pushinteger(@intCast(value)),
             .Float, .ComptimeFloat => L.pushnumber(@floatCast(value)),
             .Pointer => |info| {
-                if (comptime std.meta.trait.isZigString(T)) {
+                if (comptime isZigString(T)) {
                     return L.pushstring(value);
                 }
 
@@ -2314,14 +2313,6 @@ pub const State = opaque {
         }
     }
 
-    pub fn checkAdvanced(L: *State, srcloc: std.builtin.SourceLocation, label: ?[]const u8, comptime T: type, idx: Index, allocator: ?Allocator) T {
-        _ = label;
-        _ = srcloc;
-        _ = allocator;
-        _ = idx;
-        _ = L;
-    }
-
     /// [-0, +0, v] Checks that the value at the given index is of the given type. Returns the value.
     ///
     /// Cannot be called on a non-const string type or any non-string slice type, as they require allocation.
@@ -2340,6 +2331,23 @@ pub const State = opaque {
     pub fn checkResource(L: *State, comptime T: type, arg: Index) *align(@alignOf(usize)) T {
         const ptr = c.luaL_checkudata(to(L), arg, literal(@typeName(T))).?;
         return @ptrCast(@alignCast(ptr));
+    }
+
+    /// [-0, +0, -] Returns a value representation of the value at an index, and stores a reference to that value if necessary
+    pub fn valueAt(L: *State, index: Index) !Value {
+        return Value.init(L, index);
+    }
+
+    /// [-0, +0, -] Returns a table representation of the value at an index, and stores a reference to that value
+    ///
+    /// Throws an error if the value is not a table
+    pub fn tableAt(L: *State, index: Index) !Table {
+        return Table.init(L, index);
+    }
+
+    /// [-0, +0, -] Returns a function representation of the value at an index, and stores a reference to that value
+    pub fn functionAt(L: *State, index: Index) !Function {
+        return Function.init(L, index);
     }
 };
 
@@ -2361,7 +2369,7 @@ pub fn wrapAnyFn(func: anytype) CFn {
         fn wrapped(L: *State) info.return_type.? {
             var args: std.meta.ArgsTuple(@TypeOf(func)) = undefined;
 
-            inline for (args, 0..) |*slot, i| {
+            inline for (&args, 0..) |*slot, i| {
                 slot.* = L.check(@TypeOf(slot), i + 1);
             }
 
@@ -2722,7 +2730,7 @@ pub const Value = union(enum) {
         switch (T) {
             .none, .nil => return .{ .nil = {} },
             .boolean => return .{ .boolean = L.toboolean(index) },
-            .lightuserdata => return .{ .lightuserdata = L.touserdata(index).? },
+            .lightuserdata => return .{ .lightuserdata = L.touserdata(anyopaque, index).? },
             .number => if (L.isinteger(index))
                 return .{ .integer = L.tointeger(index) }
             else
@@ -2730,7 +2738,7 @@ pub const Value = union(enum) {
             .string => return .{ .string = L.tostring(index).? },
             .table => return .{ .table = try Table.init(L, index) },
             .function => return .{ .function = try Function.init(L, index) },
-            .userdata => return .{ .userdata = L.touserdata(index).? },
+            .userdata => return .{ .userdata = L.touserdata(anyopaque, index).? },
             .thread => return error.NotImplemented,
         }
     }
@@ -2744,8 +2752,8 @@ pub const Value = union(enum) {
             .integer => |v| L.pushinteger(v),
             .string => |v| L.pushstring(v),
             .table => |v| v.push(L),
-            .function => {},
-            .userdata => {},
+            .function => |v| v.push(L),
+            .userdata => |v| L.pushlightuserdata(v), // FIXME: should this copy the userdata?
             .lightuserdata => |v| L.pushlightuserdata(v),
         }
     }
@@ -2755,6 +2763,7 @@ pub const Table = struct {
     state: *State,
     ref: Index,
 
+    /// [-0, +0, -] Initializes a table from the value at the given index. This stores a reference to the table.
     pub fn init(L: *State, index: Index) !Table {
         if (L.typeof(index) != .table)
             return error.NotATable;
@@ -2763,11 +2772,12 @@ pub const Table = struct {
         return .{ .ref = L.ref(REGISTRYINDEX), .state = L };
     }
 
+    /// [-0, +0, -] Deinitializes this representation and dereferences the table.
     pub fn deinit(table: Table) void {
         table.state.unref(REGISTRYINDEX, table.ref);
     }
 
-    /// [-0, +1, m] Pushes this table onto the stack of `to`.
+    /// [-0, +1, m] Pushes this table onto the stack of `to`. The `to` thread must be in the same state as this table.
     pub fn push(table: Table, to: *State) void {
         table.state.geti(REGISTRYINDEX, table.ref);
 
@@ -2814,6 +2824,7 @@ pub const Function = struct {
     state: *State,
     ref: Index,
 
+    /// [-0, +0, -] Initializes a function from the value at the given index. This stores a reference to the function.
     pub fn init(L: *State, index: Index) !Function {
         if (L.typeof(index) != .function)
             return error.NotAFunction;
@@ -2822,8 +2833,17 @@ pub const Function = struct {
         return .{ .ref = L.ref(REGISTRYINDEX), .state = L };
     }
 
+    /// [-0, +0, -] Deinitializes this representation and dereferences the function.
     pub fn deinit(func: Function) void {
         func.state.unref(REGISTRYINDEX, func.ref);
+    }
+
+    /// [-0, +1, m] Pushes this function onto the stack of `to`. The `to` thread must be in the same state as this function.
+    pub fn push(func: Function, to: *State) void {
+        func.state.geti(REGISTRYINDEX, func.ref);
+
+        if (to != func.state)
+            func.state.xmove(to, 1);
     }
 
     pub const ReturnType = union(enum) {
@@ -2849,10 +2869,11 @@ pub const Function = struct {
         }
     }
 
+    /// [-0, +0, e] Calls this function with the given arguments and returns the result.
     pub fn call(func: Function, args: anytype, comptime returns: ReturnType) MakeCallReturn(returns) {
         const prev_top = func.state.gettop();
 
-        func.state.geti(REGISTRYINDEX, func.ref);
+        assert(func.state.geti(REGISTRYINDEX, func.ref) == .function);
 
         inline for (args) |arg| {
             func.state.push(arg);
@@ -2860,9 +2881,9 @@ pub const Function = struct {
 
         var ret: MakeCallReturn(returns) = undefined;
         const num_returns = switch (returns) {
-            .none => return 0,
-            .value => return 1,
-            .all => return null,
+            .none => 0,
+            .value => 1,
+            .all => null,
             .many => returns.many.len,
         };
 
@@ -2899,4 +2920,82 @@ test {
 
     std.testing.refAllDecls(LuaReader(std.fs.File.Reader));
     std.testing.refAllDecls(LuaWriter(std.fs.File.Writer));
+}
+
+/// Returns true if the passed type will coerce to []const u8.
+/// Any of the following are considered strings:
+/// ```
+/// []const u8, [:S]const u8, *const [N]u8, *const [N:S]u8,
+/// []u8, [:S]u8, *[:S]u8, *[N:S]u8.
+/// ```
+/// These types are not considered strings:
+/// ```
+/// u8, [N]u8, [*]const u8, [*:0]const u8,
+/// [*]const [N]u8, []const u16, []const i8,
+/// *const u8, ?[]const u8, ?*const [N]u8.
+/// ```
+inline fn isZigString(comptime T: type) bool {
+    return blk: {
+        // Only pointer types can be strings, no optionals
+        const info = @typeInfo(T);
+        if (info != .Pointer) break :blk false;
+
+        const ptr = &info.Pointer;
+        // Check for CV qualifiers that would prevent coerction to []const u8
+        if (ptr.is_volatile or ptr.is_allowzero) break :blk false;
+
+        // If it's already a slice, simple check.
+        if (ptr.size == .Slice) {
+            break :blk ptr.child == u8;
+        }
+
+        // Otherwise check if it's an array type that coerces to slice.
+        if (ptr.size == .One) {
+            const child = @typeInfo(ptr.child);
+            if (child == .Array) {
+                const arr = &child.Array;
+                break :blk arr.child == u8;
+            }
+        }
+
+        break :blk false;
+    };
+}
+
+test isZigString {
+    try std.testing.expect(isZigString([]const u8));
+    try std.testing.expect(isZigString([]u8));
+    try std.testing.expect(isZigString([:0]const u8));
+    try std.testing.expect(isZigString([:0]u8));
+    try std.testing.expect(isZigString([:5]const u8));
+    try std.testing.expect(isZigString([:5]u8));
+    try std.testing.expect(isZigString(*const [0]u8));
+    try std.testing.expect(isZigString(*[0]u8));
+    try std.testing.expect(isZigString(*const [0:0]u8));
+    try std.testing.expect(isZigString(*[0:0]u8));
+    try std.testing.expect(isZigString(*const [0:5]u8));
+    try std.testing.expect(isZigString(*[0:5]u8));
+    try std.testing.expect(isZigString(*const [10]u8));
+    try std.testing.expect(isZigString(*[10]u8));
+    try std.testing.expect(isZigString(*const [10:0]u8));
+    try std.testing.expect(isZigString(*[10:0]u8));
+    try std.testing.expect(isZigString(*const [10:5]u8));
+    try std.testing.expect(isZigString(*[10:5]u8));
+
+    try std.testing.expect(!isZigString(u8));
+    try std.testing.expect(!isZigString([4]u8));
+    try std.testing.expect(!isZigString([4:0]u8));
+    try std.testing.expect(!isZigString([*]const u8));
+    try std.testing.expect(!isZigString([*]const [4]u8));
+    try std.testing.expect(!isZigString([*c]const u8));
+    try std.testing.expect(!isZigString([*c]const [4]u8));
+    try std.testing.expect(!isZigString([*:0]const u8));
+    try std.testing.expect(!isZigString([*:0]const u8));
+    try std.testing.expect(!isZigString(*[]const u8));
+    try std.testing.expect(!isZigString(?[]const u8));
+    try std.testing.expect(!isZigString(?*const [4]u8));
+    try std.testing.expect(!isZigString([]allowzero u8));
+    try std.testing.expect(!isZigString([]volatile u8));
+    try std.testing.expect(!isZigString(*allowzero [4]u8));
+    try std.testing.expect(!isZigString(*volatile [4]u8));
 }

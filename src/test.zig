@@ -11,6 +11,7 @@ pub fn main() !void {
     L.openlibs();
 
     try expect(L.getglobal("print") == .function);
+    const print = try L.functionAt(-1);
 
     L.push("Hello, ");
     L.push("World!");
@@ -21,7 +22,9 @@ pub fn main() !void {
 
     L.call(1, 0);
 
-    const value = L.pull(-1);
+    const value = try L.valueAt(-1);
     try expect(value == .string);
     try expect(std.mem.eql(u8, value.string, "Hello, World!"));
+
+    print.call(.{"This is a print() call!"}, .none);
 }

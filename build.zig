@@ -1,28 +1,30 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
+const Build = std.Build;
+
+fn installHeader(c: *Build.Step.Compile, header: Build.LazyPath, name: []const u8) void {
+    const b = c.root_module.owner;
+
+    const install = b.addInstallFileWithDir(header, .header, name);
+
+    c.step.dependOn(&install.step);
+    c.installed_headers.append(&install.step) catch @panic("OOM");
+}
+
+pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const debug = b.option(bool, "debug", "Create a debug build of lua") orelse true;
     const strip = b.option(bool, "strip", "Strip debug information from static lua builds") orelse true;
     const requested_lua = b.option(LuaVersion, "lua", "Version of lua to build against");
-
-    const disable_coco = b.option(bool, "disable-coco", "Lua 5.1 only. Disable Coco") orelse false;
-    const coco_use_setjmp = b.option(bool, "coco-use-setjmp", "Lua 5.1 only. Use setjmp for Coco") orelse false;
-    const coco_use_ucontext = b.option(bool, "coco-use-ucontext", "Lua 5.1 only. Use ucontext for Coco") orelse false;
-    const coco_use_fibers = b.option(bool, "coco-use-fibers", "Lua 5.1 only. Use fibers for Coco") orelse false;
 
     const disable_compat52 = b.option(bool, "disable-compat52", "Luajit only. Disable Lua 5.2 compat") orelse false;
     const disable_ffi = b.option(bool, "disable-ffi", "Luajit only. Disable FFI") orelse false;
     const disable_jit = b.option(bool, "disable-jit", "Luajit only. Disable JIT") orelse false;
     const disable_gc64 = b.option(bool, "disable-gc64", "Luajit only. Disable GC64") orelse false;
 
-    const module = b.addModule("lunaro", .{
-        .source_file = .{ .path = "src/lunaro.zig" },
-    });
-
     const optimize: std.builtin.OptimizeMode = if (debug) .Debug else .ReleaseSafe;
     if (requested_lua) |req_lua| {
-        const test_step = b.step("test", "Run tests");
+        // Lua Shared Library
 
         const lua_shared = b.addSharedLibrary(.{
             .name = "lua-shared",
@@ -30,13 +32,10 @@ pub fn build(b: *std.Build) void {
             .target = target,
         });
 
-        lua_shared.strip = strip;
+        lua_shared.root_module.strip = strip;
 
         configureLuaLibrary(b, target, lua_shared, req_lua, .{
-            .disable_coco = disable_coco,
-            .coco_use_setjmp = coco_use_setjmp,
-            .coco_use_ucontext = coco_use_ucontext,
-            .coco_use_fibers = coco_use_fibers,
+            .debug = debug,
 
             .compat52 = !disable_compat52,
             .disable_ffi = disable_ffi,
@@ -44,7 +43,13 @@ pub fn build(b: *std.Build) void {
             .disable_gc64 = disable_gc64,
         });
 
-        b.installArtifact(lua_shared);
+        const module_shared = b.addModule("lunaro-shared", .{
+            .root_source_file = .{ .path = "src/lunaro.zig" },
+        });
+
+        module_shared.linkLibrary(lua_shared);
+
+        // Lua Static Library
 
         const lua_static = b.addStaticLibrary(.{
             .name = "lua-static",
@@ -52,13 +57,10 @@ pub fn build(b: *std.Build) void {
             .target = target,
         });
 
-        lua_static.strip = strip;
+        lua_static.root_module.strip = strip;
 
         configureLuaLibrary(b, target, lua_static, req_lua, .{
-            .disable_coco = disable_coco,
-            .coco_use_setjmp = coco_use_setjmp,
-            .coco_use_ucontext = coco_use_ucontext,
-            .coco_use_fibers = coco_use_fibers,
+            .debug = debug,
 
             .compat52 = !disable_compat52,
             .disable_ffi = disable_ffi,
@@ -66,34 +68,25 @@ pub fn build(b: *std.Build) void {
             .disable_gc64 = disable_gc64,
         });
 
-        b.installArtifact(lua_static);
+        const module_static = b.addModule("lunaro-static", .{
+            .root_source_file = .{ .path = "src/lunaro.zig" },
+        });
 
-        {
-            const test_static_exe = b.addTest(.{
-                .root_source_file = .{ .path = "src/lunaro.zig" },
-                .optimize = optimize,
-            });
+        module_static.linkLibrary(lua_static);
 
-            test_static_exe.linkLibrary(lua_static);
+        // Lua System Library
 
-            const example_static_exe = b.addExecutable(.{
-                .name = "example-static",
-                .root_source_file = .{ .path = "pkg/test.zig" },
-                .optimize = optimize,
-            });
+        const module_system = b.addModule("lunaro-system", .{
+            .root_source_file = .{ .path = "src/lunaro.zig" },
+            .target = target,
+        });
 
-            example_static_exe.linkLibrary(lua_static);
-            example_static_exe.addModule("lunaro", module);
+        module_system.link_libc = true;
+        module_system.linkSystemLibrary(@tagName(req_lua), .{ .needed = true, .use_pkg_config = .force });
 
-            const example_static_run = b.addRunArtifact(example_static_exe);
-            example_static_run.expectExitCode(0);
+        // Lunaro Tests
 
-            const test_static_step = b.step("test-static", "Run tests for static lua");
-            test_static_step.dependOn(&test_static_exe.step);
-            test_static_step.dependOn(&example_static_run.step);
-
-            test_step.dependOn(test_static_step);
-        }
+        const test_step = b.step("test", "Run tests");
 
         {
             const test_shared_exe = b.addTest(.{
@@ -101,19 +94,22 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
             });
 
-            test_shared_exe.linkLibrary(lua_shared);
+            test_shared_exe.root_module.linkLibrary(lua_shared);
 
             const example_shared_exe = b.addExecutable(.{
+                .target = b.host,
                 .name = "example-shared",
-                .root_source_file = .{ .path = "pkg/test.zig" },
+                .root_source_file = .{ .path = "src/test.zig" },
                 .optimize = optimize,
             });
 
-            example_shared_exe.linkLibrary(lua_shared);
-            example_shared_exe.addModule("lunaro", module);
+            example_shared_exe.root_module.addImport("lunaro", module_shared);
 
             const example_shared_run = b.addRunArtifact(example_shared_exe);
             example_shared_run.expectExitCode(0);
+
+            const install_example_shared = b.addInstallArtifact(example_shared_exe, .{});
+            example_shared_run.step.dependOn(&install_example_shared.step);
 
             const test_shared_step = b.step("test-shared", "Run tests for shared lua");
             test_shared_step.dependOn(&test_shared_exe.step);
@@ -123,26 +119,60 @@ pub fn build(b: *std.Build) void {
         }
 
         {
+            const test_static_exe = b.addTest(.{
+                .root_source_file = .{ .path = "src/lunaro.zig" },
+                .optimize = optimize,
+            });
+
+            test_static_exe.root_module.linkLibrary(lua_static);
+
+            const example_static_exe = b.addExecutable(.{
+                .target = b.host,
+                .name = "example-static",
+                .root_source_file = .{ .path = "src/test.zig" },
+                .optimize = optimize,
+            });
+
+            example_static_exe.root_module.addImport("lunaro", module_static);
+
+            const example_static_run = b.addRunArtifact(example_static_exe);
+            example_static_run.expectExitCode(0);
+
+            const install_example_static = b.addInstallArtifact(example_static_exe, .{});
+            example_static_run.step.dependOn(&install_example_static.step);
+
+            const test_static_step = b.step("test-static", "Run tests for static lua");
+            test_static_step.dependOn(&test_static_exe.step);
+            test_static_step.dependOn(&example_static_run.step);
+
+            test_step.dependOn(test_static_step);
+        }
+
+        {
             const test_system_exe = b.addTest(.{
                 .root_source_file = .{ .path = "src/lunaro.zig" },
                 .optimize = optimize,
             });
 
-            test_system_exe.linkLibC();
-            test_system_exe.linkSystemLibrary(@tagName(req_lua));
+            test_system_exe.root_module.link_libc = true;
+            test_system_exe.root_module.linkSystemLibrary(@tagName(req_lua), .{});
 
             const example_system_exe = b.addExecutable(.{
+                .target = b.host,
                 .name = "example-system",
-                .root_source_file = .{ .path = "pkg/test.zig" },
+                .root_source_file = .{ .path = "src/test.zig" },
                 .optimize = optimize,
             });
 
-            example_system_exe.linkLibC();
-            example_system_exe.linkSystemLibrary(@tagName(req_lua));
-            example_system_exe.addModule("lunaro", module);
+
+            example_system_exe.root_module.addImport("lunaro", module_system);
+
 
             const example_system_run = b.addRunArtifact(example_system_exe);
             example_system_run.expectExitCode(0);
+
+            const install_example_system = b.addInstallArtifact(example_system_exe, .{});
+            example_system_run.step.dependOn(&install_example_system.step);
 
             const test_system_step = b.step("test-system", "Run tests for system lua");
             test_system_step.dependOn(&test_system_exe.step);
@@ -170,11 +200,7 @@ pub fn build(b: *std.Build) void {
 }
 
 pub const ConfigureOptions = struct {
-    //lua 5.1 only
-    disable_coco: bool,
-    coco_use_setjmp: bool,
-    coco_use_ucontext: bool,
-    coco_use_fibers: bool,
+    debug: bool,
 
     // luajit only
     compat52: bool,
@@ -191,62 +217,62 @@ const LuaVersion = enum {
     luajit,
 };
 
-pub fn configureLuaLibrary(b: *std.Build, target: std.zig.CrossTarget, compile: *std.Build.Step.Compile, version: LuaVersion, options: ConfigureOptions) void {
+pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Build.Step.Compile, version: LuaVersion, options: ConfigureOptions) void {
+    const is_os_darwin = target.result.isDarwin();
+    const is_os_windows = target.result.os.tag == .windows;
+    const is_os_linux = target.result.os.tag == .linux;
+    const is_os_bsd = switch (target.result.os.tag) {
+        .netbsd, .freebsd, .openbsd, .dragonfly => true,
+        else => false,
+    };
+
+    const is_endian_little = target.result.cpu.arch.endian() == .little;
+    const is_arch_64bit = target.result.ptrBitWidth() == 64;
+    const is_arch_fpu = switch (target.result.cpu.arch) {
+        .arm, .armeb, .powerpc, .powerpcle, .powerpc64, .powerpc64le, .mips, .mipsel, .mips64, .mips64el => false,
+        else => true,
+    } or target.result.getFloatAbi() == .hard;
+
+    const dep = b.lazyDependency(@tagName(version), .{}) orelse return;
+
     switch (version) {
         inline .lua51, .lua52, .lua53, .lua54 => |this_version| {
             compile.linkLibC();
 
-            compile.installHeader("pkg/" ++ @tagName(this_version) ++ "/lua.h", "lua.h");
-            compile.installHeader("pkg/" ++ @tagName(this_version) ++ "/luaconf.h", "luaconf.h");
-            compile.installHeader("pkg/" ++ @tagName(this_version) ++ "/lualib.h", "lualib.h");
-            compile.installHeader("pkg/" ++ @tagName(this_version) ++ "/lauxlib.h", "lauxlib.h");
+            installHeader(compile, dep.path("src/lua.h"), "lua.h");
+            installHeader(compile, dep.path("src/luaconf.h"), "luaconf.h");
+            installHeader(compile, dep.path("src/lualib.h"), "lualib.h");
+            installHeader(compile, dep.path("src/lauxlib.h"), "lauxlib.h");
 
-            if (version == .lua51) {
-                if (options.disable_coco) {
-                    compile.defineCMacro("COCO_DISABLE", null);
-                }
-
-                if (options.coco_use_setjmp) {
-                    compile.defineCMacro("COCO_USE_SETJMP", null);
-                }
-
-                if (options.coco_use_ucontext) {
-                    compile.defineCMacro("COCO_USE_UCONTEXT", null);
-                }
-
-                if (options.coco_use_fibers) {
-                    compile.defineCMacro("COCO_USE_FIBERS", null);
-                }
-            }
-
-            if (target.isDarwin()) {
-                compile.defineCMacro("LUA_USE_MACOSX", null);
-            } else if (target.isWindows()) {
-                compile.defineCMacro("LUA_USE_WINDOWS", null);
+            if (is_os_darwin) {
+                compile.root_module.addCMacro("LUA_USE_MACOSX", "1");
+            } else if (is_os_windows) {
+                compile.root_module.addCMacro("LUA_USE_WINDOWS", "1");
             } else {
-                compile.defineCMacro("LUA_USE_POSIX", null);
-                compile.defineCMacro("LUA_USE_DLOPEN", null);
+                compile.root_module.addCMacro("LUA_USE_POSIX", "1");
+                compile.root_module.addCMacro("LUA_USE_DLOPEN", "1");
             }
 
             inline for (@field(files, @tagName(this_version))) |file| {
                 compile.addCSourceFile(.{
-                    .file = .{ .path = "pkg/" ++ @tagName(this_version) ++ "/" ++ file },
+                    .file = dep.path("src/" ++ file),
                     .flags = &.{},
                 });
             }
         },
         inline .luajit => {
             const minilua = b.addExecutable(.{
+                .target = b.host,
                 .name = "minilua",
                 .optimize = .ReleaseSafe,
             });
 
-            minilua.linkLibC();
-            minilua.disable_sanitize_c = true;
+            minilua.root_module.link_libc = true;
+            minilua.root_module.sanitize_c = false;
 
             inline for (files.luajit.minilua) |file| {
                 minilua.addCSourceFile(.{
-                    .file = .{ .path = "pkg/luajit/src/" ++ file },
+                    .file = dep.path("src/" ++ file),
                     .flags = &.{},
                 });
             }
@@ -254,130 +280,139 @@ pub fn configureLuaLibrary(b: *std.Build, target: std.zig.CrossTarget, compile: 
             // Run DASM to generate buildvm_arch.h
 
             const dasm_run = b.addRunArtifact(minilua);
-            dasm_run.addFileArg(.{ .path = "pkg/luajit/dynasm/dynasm.lua" });
+            dasm_run.addFileArg(dep.path("dynasm/dynasm.lua"));
 
-            if (target.getCpuArch().endian() == .little) {
-                dasm_run.addArgs(&.{ "-D", "LE" });
+            if (is_endian_little) {
+                dasm_run.addArgs(&.{ "-D", "ENDIAN_LE" });
             } else {
-                dasm_run.addArgs(&.{ "-D", "BE" });
+                dasm_run.addArgs(&.{ "-D", "ENDIAN_BE" });
             }
 
-            if (target.toTarget().ptrBitWidth() == 64) {
+            if (is_arch_64bit) {
                 dasm_run.addArgs(&.{ "-D", "P64" });
             }
 
             dasm_run.addArgs(&.{ "-D", "JIT" });
             dasm_run.addArgs(&.{ "-D", "FFI" });
 
-            if (target.toTarget().getFloatAbi() != .hard) {
+            if (is_arch_fpu) {
                 dasm_run.addArgs(&.{ "-D", "FPU" });
-            } else {
                 dasm_run.addArgs(&.{ "-D", "HFABI" });
             }
 
-            if (target.isWindows()) {
+            if (target.result.os.tag == .windows) {
                 dasm_run.addArgs(&.{ "-D", "WIN" });
+            }
+
+            switch (target.result.cpu.arch) {
+                .aarch64, .aarch64_be, .aarch64_32 => dasm_run.addArgs(&.{ "-D", "PAUTH" }),
+                else => {},
             }
 
             dasm_run.addArg("-o");
             const buildvm_arch_header = dasm_run.addOutputFileArg("buildvm_arch.h");
 
-            switch (target.getCpuArch()) {
-                .x86 => dasm_run.addFileArg(.{ .path = "pkg/luajit/src/vm_x86.dasc" }),
-                .x86_64 => dasm_run.addFileArg(.{ .path = "pkg/luajit/src/vm_x64.dasc" }),
-                .arm, .armeb => dasm_run.addFileArg(.{ .path = "pkg/luajit/src/vm_arm.dasc" }),
-                .aarch64, .aarch64_be => dasm_run.addFileArg(.{ .path = "pkg/luajit/src/vm_arm64.dasc" }),
-                .powerpc, .powerpcle => dasm_run.addFileArg(.{ .path = "pkg/luajit/src/vm_ppc.dasc" }),
-                .mips, .mipsel => dasm_run.addFileArg(.{ .path = "pkg/luajit/src/vm_mips.dasc" }),
-                .mips64, .mips64el => dasm_run.addFileArg(.{ .path = "pkg/luajit/src/vm_mips64.dasc" }),
-                else => @panic("unhandled architechture"),
+            switch (target.result.cpu.arch) {
+                .x86 => dasm_run.addFileArg(FixDynasmPath.init(b, dep.path("src/vm_x86.dasc"))),
+                .x86_64 => dasm_run.addFileArg(FixDynasmPath.init(b, dep.path("src/vm_x64.dasc"))),
+                .arm, .armeb => dasm_run.addFileArg(FixDynasmPath.init(b, dep.path("src/vm_arm.dasc"))),
+                .aarch64, .aarch64_be => dasm_run.addFileArg(FixDynasmPath.init(b, dep.path("src/vm_arm64.dasc"))),
+                // .powerpc, .powerpcle => dasm_run.addFileArg(dep.path("src/vm_ppc.dasc")),
+                // .mips, .mipsel => dasm_run.addFileArg(dep.path("src/vm_mips.dasc")),
+                // .mips64, .mips64el => dasm_run.addFileArg(dep.path("src/vm_mips64.dasc")),
+                else => @panic("unhandled architecture"),
             }
 
             // Generate versioned luajit.h
 
-            const luajit_relver = b.addWriteFile("luajit_relver.txt", "hash_here");
+            const luajit_relver = b.addWriteFile("luajit_relver.txt", "1694751058");
 
             const luajit_h_run = b.addRunArtifact(minilua);
-            luajit_h_run.addFileArg(.{ .path = "pkg/luajit/src/host/genversion.lua" });
-            luajit_h_run.addFileArg(.{ .path = "pkg/luajit/src/luajit_rolling.h" });
+            luajit_h_run.addFileArg(dep.path("src/host/genversion.lua"));
+            luajit_h_run.addFileArg(dep.path("src/luajit_rolling.h"));
             luajit_h_run.addFileArg(luajit_relver.files.items[0].getPath());
             const luajit_h = luajit_h_run.addOutputFileArg("luajit.h");
 
             // Create buildvm to generate necessary files
 
             const buildvm_exe = b.addExecutable(.{
+                .target = b.host,
                 .name = "buildvm",
                 .optimize = .ReleaseSafe,
             });
-            buildvm_exe.disable_sanitize_c = true;
 
-            buildvm_exe.step.dependOn(&dasm_run.step);
+            buildvm_exe.root_module.sanitize_c = false;
+            buildvm_exe.root_module.link_libc = true;
 
-            buildvm_exe.linkLibC();
-            buildvm_exe.addIncludePath(FixIncludePath.init(b, luajit_h));
-            buildvm_exe.addIncludePath(FixIncludePath.init(b, buildvm_arch_header));
-            buildvm_exe.addIncludePath(.{ .path = "pkg/luajit/src" });
+            buildvm_exe.root_module.addIncludePath(FixIncludePath.init(b, luajit_h));
+            buildvm_exe.root_module.addIncludePath(FixIncludePath.init(b, buildvm_arch_header));
+            buildvm_exe.root_module.addIncludePath(dep.path("src"));
 
             if (options.compat52)
-                buildvm_exe.defineCMacro("LUAJIT_ENABLE_LUA52COMPAT", null);
+                buildvm_exe.root_module.addCMacro("LUAJIT_ENABLE_LUA52COMPAT", "1");
 
             if (options.disable_ffi)
-                buildvm_exe.defineCMacro("LUAJIT_DISABLE_FFI", null);
+                buildvm_exe.root_module.addCMacro("LUAJIT_DISABLE_FFI", "1");
 
             if (options.disable_jit)
-                buildvm_exe.defineCMacro("LUAJIT_DISABLE_JIT", null);
+                buildvm_exe.root_module.addCMacro("LUAJIT_DISABLE_JIT", "1");
 
             if (options.disable_gc64)
-                buildvm_exe.defineCMacro("LUAJIT_DISABLE_GC64", null);
+                buildvm_exe.root_module.addCMacro("LUAJIT_DISABLE_GC64", "1");
 
-            if (target.isWindows()) {
-                buildvm_exe.defineCMacro("LUAJIT_OS", "LUAJIT_OS_WINDOWS");
-            } else if (target.isLinux()) {
-                buildvm_exe.defineCMacro("LUAJIT_OS", "LUAJIT_OS_LINUX");
-            } else if (target.isDarwin()) {
-                buildvm_exe.defineCMacro("LUAJIT_OS", "LUAJIT_OS_OSX");
-            } else if (target.isNetBSD() or target.isFreeBSD() or target.isOpenBSD() or target.isDragonFlyBSD()) {
-                buildvm_exe.defineCMacro("LUAJIT_OS", "LUAJIT_OS_BSD");
+            if (is_os_windows) {
+                buildvm_exe.root_module.addCMacro("LUAJIT_OS", "LUAJIT_OS_WINDOWS");
+            } else if (is_os_linux) {
+                buildvm_exe.root_module.addCMacro("LUAJIT_OS", "LUAJIT_OS_LINUX");
+            } else if (is_os_darwin) {
+                buildvm_exe.root_module.addCMacro("LUAJIT_OS", "LUAJIT_OS_OSX");
+            } else if (is_os_bsd) {
+                buildvm_exe.root_module.addCMacro("LUAJIT_OS", "LUAJIT_OS_BSD");
             } else {
-                buildvm_exe.defineCMacro("LUAJIT_OS", "LUAJIT_OS_OTHER");
+                buildvm_exe.root_module.addCMacro("LUAJIT_OS", "LUAJIT_OS_OTHER");
             }
 
-            if (target.getCpuArch() == .aarch64_be) {
-                buildvm_exe.defineCMacro("__AARCH64EB__", "1");
-            } else if (target.getCpuArch().isPPC() or target.getCpuArch().isPPC64()) {
-                if (target.getCpuArch().endian() == .little) {
-                    buildvm_exe.defineCMacro("LJ_ARCH_ENDIAN", "LUAJIT_LE");
+            if (target.result.cpu.arch == .aarch64_be) {
+                buildvm_exe.root_module.addCMacro("__AARCH64EB__", "1");
+            } else if (target.result.cpu.arch.isPPC() or target.result.cpu.arch.isPPC64()) {
+                if (is_endian_little) {
+                    buildvm_exe.root_module.addCMacro("LJ_ARCH_ENDIAN", "LUAJIT_LE");
                 } else {
-                    buildvm_exe.defineCMacro("LJ_ARCH_ENDIAN", "LUAJIT_BE");
+                    buildvm_exe.root_module.addCMacro("LJ_ARCH_ENDIAN", "LUAJIT_BE");
                 }
-            } else if (target.getCpuArch().isMIPS()) {
-                if (target.getCpuArch().endian() == .little) {
-                    buildvm_exe.defineCMacro("__MIPSEL__", "1");
+            } else if (target.result.cpu.arch.isMIPS()) {
+                if (is_endian_little) {
+                    buildvm_exe.root_module.addCMacro("__MIPSEL__", "1");
                 }
             }
 
-            switch (target.getCpuArch()) {
-                .x86 => buildvm_exe.defineCMacro("LUAJIT_CPU", "LUAJIT_ARCH_x86"),
-                .x86_64 => buildvm_exe.defineCMacro("LUAJIT_CPU", "LUAJIT_ARCH_x64"),
-                .arm, .armeb => buildvm_exe.defineCMacro("LUAJIT_CPU", "LUAJIT_ARCH_arm"),
-                .aarch64, .aarch64_be => buildvm_exe.defineCMacro("LUAJIT_CPU", "LUAJIT_ARCH_arm64"),
-                .powerpc, .powerpcle => buildvm_exe.defineCMacro("LUAJIT_CPU", "LUAJIT_ARCH_ppc"),
-                .mips, .mipsel => buildvm_exe.defineCMacro("LUAJIT_CPU", "LUAJIT_ARCH_mips"),
-                .mips64, .mips64el => buildvm_exe.defineCMacro("LUAJIT_CPU", "LUAJIT_ARCH_mips64"),
+            switch (target.result.cpu.arch) {
+                .aarch64, .aarch64_be, .aarch64_32 => buildvm_exe.root_module.addCMacro("LJ_ABI_PAUTH", "1"),
+                else => {},
+            }
+
+            switch (target.result.cpu.arch) {
+                .x86 => buildvm_exe.root_module.addCMacro("LUAJIT_TARGET", "LUAJIT_ARCH_x86"),
+                .x86_64 => buildvm_exe.root_module.addCMacro("LUAJIT_TARGET", "LUAJIT_ARCH_x64"),
+                .arm, .armeb => buildvm_exe.root_module.addCMacro("LUAJIT_TARGET", "LUAJIT_ARCH_arm"),
+                .aarch64, .aarch64_be => buildvm_exe.root_module.addCMacro("LUAJIT_TARGET", "LUAJIT_ARCH_arm64"),
+                // .powerpc, .powerpcle => buildvm_exe.root_module.addCMacro("LUAJIT_CPU", "LUAJIT_ARCH_ppc"),
+                // .mips, .mipsel => buildvm_exe.root_module.addCMacro("LUAJIT_CPU", "LUAJIT_ARCH_mips"),
+                // .mips64, .mips64el => buildvm_exe.root_module.addCMacro("LUAJIT_CPU", "LUAJIT_ARCH_mips64"),
                 else => @panic("unhandled architechture"),
             }
 
-            if (target.toTarget().getFloatAbi() != .hard) {
-                buildvm_exe.defineCMacro("LJ_ARCH_HASFPU", "1");
-                buildvm_exe.defineCMacro("LJ_ARCH_SOFTFP", "0");
+            if (is_arch_fpu) {
+                buildvm_exe.root_module.addCMacro("LJ_ARCH_HASFPU", "1");
+                buildvm_exe.root_module.addCMacro("LJ_ARCH_SOFTFP", "0");
             } else {
-                buildvm_exe.defineCMacro("LJ_ARCH_HASFPU", "0");
-                buildvm_exe.defineCMacro("LJ_ARCH_SOFTFP", "1");
+                buildvm_exe.root_module.addCMacro("LJ_ARCH_HASFPU", "0");
+                buildvm_exe.root_module.addCMacro("LJ_ARCH_SOFTFP", "1");
             }
 
             inline for (files.luajit.buildvm) |file| {
                 buildvm_exe.addCSourceFile(.{
-                    .file = .{ .path = "pkg/luajit/src/" ++ file },
+                    .file = dep.path("src/" ++ file),
                     .flags = &.{},
                 });
             }
@@ -388,50 +423,50 @@ pub fn configureLuaLibrary(b: *std.Build, target: std.zig.CrossTarget, compile: 
             buildvm_bcdef.addArgs(&.{ "-m", "bcdef", "-o" });
             const bcdef_header = buildvm_bcdef.addOutputFileArg("lj_bcdef.h");
             inline for (files.luajit.lib) |file| {
-                buildvm_bcdef.addFileArg(.{ .path = "pkg/luajit/src/" ++ file });
+                buildvm_bcdef.addFileArg(dep.path("src/" ++ file));
             }
 
             const buildvm_ffdef = b.addRunArtifact(buildvm_exe);
             buildvm_ffdef.addArgs(&.{ "-m", "ffdef", "-o" });
             const ffdef_header = buildvm_ffdef.addOutputFileArg("lj_ffdef.h");
             inline for (files.luajit.lib) |file| {
-                buildvm_ffdef.addFileArg(.{ .path = "pkg/luajit/src/" ++ file });
+                buildvm_ffdef.addFileArg(dep.path("src/" ++ file));
             }
 
             const buildvm_libdef = b.addRunArtifact(buildvm_exe);
             buildvm_libdef.addArgs(&.{ "-m", "libdef", "-o" });
             const libdef_header = buildvm_libdef.addOutputFileArg("lj_libdef.h");
             inline for (files.luajit.lib) |file| {
-                buildvm_libdef.addFileArg(.{ .path = "pkg/luajit/src/" ++ file });
+                buildvm_libdef.addFileArg(dep.path("src/" ++ file));
             }
 
             const buildvm_recdef = b.addRunArtifact(buildvm_exe);
             buildvm_recdef.addArgs(&.{ "-m", "recdef", "-o" });
             const recdef_header = buildvm_recdef.addOutputFileArg("lj_recdef.h");
             inline for (files.luajit.lib) |file| {
-                buildvm_recdef.addFileArg(.{ .path = "pkg/luajit/src/" ++ file });
+                buildvm_recdef.addFileArg(dep.path("src/" ++ file));
             }
 
             const buildvm_vmdef = b.addRunArtifact(buildvm_exe);
             buildvm_vmdef.addArgs(&.{ "-m", "vmdef", "-o" });
             const vmdef_lua = buildvm_vmdef.addOutputFileArg("vmdef.lua");
             inline for (files.luajit.lib) |file| {
-                buildvm_recdef.addFileArg(.{ .path = "pkg/luajit/src/" ++ file });
+                buildvm_recdef.addFileArg(dep.path("src/" ++ file));
             }
 
             const buildvm_folddef = b.addRunArtifact(buildvm_exe);
             buildvm_folddef.addArgs(&.{ "-m", "folddef", "-o" });
             const folddef_header = buildvm_folddef.addOutputFileArg("lj_folddef.h");
-            buildvm_folddef.addFileArg(.{ .path = "pkg/luajit/src/lj_opt_fold.c" });
+            buildvm_folddef.addFileArg(dep.path("src/lj_opt_fold.c"));
 
             // Create luajit library
 
-            compile.disable_sanitize_c = true;
-            compile.stack_protector = false;
-            compile.omit_frame_pointer = true;
-            compile.defineCMacro("LUAJIT_UNWIND_EXTERNAL", null);
-            compile.linkSystemLibrary("unwind");
-            compile.unwind_tables = true;
+            compile.root_module.sanitize_c = false;
+            compile.root_module.stack_protector = false;
+            compile.root_module.omit_frame_pointer = true;
+            compile.root_module.addCMacro("LUAJIT_UNWIND_EXTERNAL", "1");
+            compile.root_module.linkSystemLibrary("unwind", .{ .needed = true });
+            compile.root_module.unwind_tables = true;
 
             compile.step.dependOn(&buildvm_bcdef.step);
             compile.step.dependOn(&buildvm_ffdef.step);
@@ -446,50 +481,48 @@ pub fn configureLuaLibrary(b: *std.Build, target: std.zig.CrossTarget, compile: 
             compile.addIncludePath(FixIncludePath.init(b, libdef_header));
             compile.addIncludePath(FixIncludePath.init(b, recdef_header));
             compile.addIncludePath(FixIncludePath.init(b, folddef_header));
-            compile.addIncludePath(.{ .path = "pkg/luajit/src" });
+            compile.addIncludePath(dep.path("src"));
 
-            compile.installHeader("pkg/luajit/src/lua.h", "lua.h");
-            compile.installHeader("pkg/luajit/src/luaconf.h", "luaconf.h");
-            compile.installHeader("pkg/luajit/src/lualib.h", "lualib.h");
-            compile.installHeader("pkg/luajit/src/lauxlib.h", "lauxlib.h");
-
-            const install_luajit_h = b.addInstallFileWithDir(luajit_h, .header, "luajit.h");
-            compile.step.dependOn(&install_luajit_h.step);
+            installHeader(compile, dep.path("src/lua.h"), "lua.h");
+            installHeader(compile, dep.path("src/luaconf.h"), "luaconf.h");
+            installHeader(compile, dep.path("src/lualib.h"), "lualib.h");
+            installHeader(compile, dep.path("src/lauxlib.h"), "lauxlib.h");
+            installHeader(compile, luajit_h, "luajit.h");
 
             inline for (files.luajit.core) |file| {
                 compile.addCSourceFile(.{
-                    .file = .{ .path = "pkg/luajit/src/" ++ file },
+                    .file = dep.path("src/" ++ file),
                     .flags = &.{},
                 });
             }
 
             inline for (files.luajit.lib) |file| {
                 compile.addCSourceFile(.{
-                    .file = .{ .path = "pkg/luajit/src/" ++ file },
+                    .file = dep.path("src/" ++ file),
                     .flags = &.{},
                 });
             }
 
             if (options.compat52)
-                compile.defineCMacro("LUAJIT_ENABLE_LUA52COMPAT", null);
+                compile.root_module.addCMacro("LUAJIT_ENABLE_LUA52COMPAT", "1");
 
             if (options.disable_ffi)
-                compile.defineCMacro("LUAJIT_DISABLE_FFI", null);
+                compile.root_module.addCMacro("LUAJIT_DISABLE_FFI", "1");
 
             if (options.disable_jit)
-                compile.defineCMacro("LUAJIT_DISABLE_JIT", null);
+                compile.root_module.addCMacro("LUAJIT_DISABLE_JIT", "1");
 
             if (options.disable_gc64)
-                compile.defineCMacro("LUAJIT_DISABLE_GC64", null);
+                compile.root_module.addCMacro("LUAJIT_DISABLE_GC64", "1");
 
             // Final buildvm run to generate lj_vm.o
 
             const buildvm_ljvm = b.addRunArtifact(buildvm_exe);
             buildvm_ljvm.addArg("-m");
 
-            if (target.isWindows()) {
+            if (target.result.os.tag == .windows) {
                 buildvm_ljvm.addArg("peobj");
-            } else if (target.isDarwin()) {
+            } else if (target.result.isDarwin()) {
                 buildvm_ljvm.addArg("machasm");
             } else {
                 buildvm_ljvm.addArg("elfasm");
@@ -497,7 +530,7 @@ pub fn configureLuaLibrary(b: *std.Build, target: std.zig.CrossTarget, compile: 
 
             buildvm_ljvm.addArg("-o");
 
-            if (target.isWindows()) {
+            if (target.result.os.tag == .windows) {
                 const ljvm_obj_output = buildvm_ljvm.addOutputFileArg("lj_vm.o");
 
                 compile.addObjectFile(ljvm_obj_output);
@@ -510,7 +543,7 @@ pub fn configureLuaLibrary(b: *std.Build, target: std.zig.CrossTarget, compile: 
             // install jit/*.lua files
 
             const install_jit = b.addInstallDirectory(.{
-                .source_dir = .{ .path = "pkg/luajit/src/jit" },
+                .source_dir = dep.path("src/jit"),
                 .install_dir = .prefix,
                 .install_subdir = "jit",
                 .exclude_extensions = &.{".gitignore"},
@@ -525,15 +558,15 @@ pub fn configureLuaLibrary(b: *std.Build, target: std.zig.CrossTarget, compile: 
 }
 
 const FixIncludePath = struct {
-    step: std.Build.Step,
+    step: Build.Step,
 
-    output_gen: std.Build.GeneratedFile,
-    input_path: std.Build.LazyPath,
+    output_gen: Build.GeneratedFile,
+    input_path: Build.LazyPath,
 
-    pub fn init(b: *std.Build, path: std.Build.LazyPath) std.Build.LazyPath {
+    pub fn init(b: *Build, path: Build.LazyPath) Build.LazyPath {
         const self = b.allocator.create(FixIncludePath) catch unreachable;
 
-        self.step = std.Build.Step.init(.{
+        self.step = Build.Step.init(.{
             .id = .custom,
             .name = "include-fix",
             .owner = b,
@@ -550,11 +583,58 @@ const FixIncludePath = struct {
         return .{ .generated = &self.output_gen };
     }
 
-    pub fn make(step: *std.Build.Step, prog_node: *std.Progress.Node) anyerror!void {
+    pub fn make(step: *Build.Step, prog_node: *std.Progress.Node) anyerror!void {
         _ = prog_node;
 
         const self = @fieldParentPtr(FixIncludePath, "step", step);
         self.output_gen.path = std.fs.path.dirname(self.input_path.getPath(step.owner)) orelse unreachable;
+
+        var all_cached = true;
+
+        for (step.dependencies.items) |dep| {
+            all_cached = all_cached and dep.result_cached;
+        }
+
+        step.result_cached = all_cached;
+    }
+};
+
+const FixDynasmPath = struct {
+    step: Build.Step,
+
+    output_gen: Build.GeneratedFile,
+    input_path: Build.LazyPath,
+
+    pub fn init(b: *Build, path: Build.LazyPath) Build.LazyPath {
+        const self = b.allocator.create(FixDynasmPath) catch unreachable;
+
+        self.step = Build.Step.init(.{
+            .id = .custom,
+            .name = "dynasm-fix",
+            .owner = b,
+            .makeFn = make,
+        });
+
+        self.input_path = path;
+
+        self.output_gen.step = &self.step;
+        self.output_gen.path = null;
+
+        path.addStepDependencies(&self.step);
+
+        return .{ .generated = &self.output_gen };
+    }
+
+    pub fn make(step: *Build.Step, prog_node: *std.Progress.Node) anyerror!void {
+        _ = prog_node;
+
+        const b = step.owner;
+        const self = @fieldParentPtr(FixDynasmPath, "step", step);
+        
+        const in_path = b.allocator.dupe(u8, self.input_path.getPath(b)) catch unreachable;
+        std.mem.replaceScalar(u8, in_path, '\\', '/');
+
+        self.output_gen.path = in_path;
 
         var all_cached = true;
 
@@ -597,7 +677,6 @@ pub const files = struct {
         "loslib.c",
         "lstrlib.c",
         "ltablib.c",
-        "lcoco.c",
     };
 
     pub const lua52 = .{

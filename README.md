@@ -59,7 +59,9 @@ This exports the `mylibrary` function (following `lunaro.wrapFn` rules) as `luao
 ```zig
 const lunaro = b.dependency("lunaro", .{});
 
-exe.addModule(lunaro.module("lunaro"));
+exe.addModule(lunaro.module("lunaro-system"));
+
+// TODO: the following is no longer applicable, I need to find a way for the user to pass this information into lunaro.
 
 exe.linkSystemLibrary("lua"); // or whatever the name of the lua library is under pkg-config
 
@@ -78,8 +80,7 @@ const lunaro = b.dependency("lunaro", .{
     // .target = ... // build lua for a non-native target
 });
 
-exe.linkLibrary(lunaro.artifact("lua-shared"));
-exe.addModule(lunaro.module("lunaro"));
+exe.addModule(lunaro.module("lunaro-shared"));
 ```
 
 ### Static Linking
@@ -91,8 +92,7 @@ const lunaro = b.dependency("lunaro", .{
     // .target = ... // build lua for a non-native target
 });
 
-exe.linkLibrary(lunaro.artifact("lua-static"));
-exe.addModule(lunaro.module("lunaro"));
+exe.addModule(lunaro.module("lunaro-static"));
 ```
 
 ## Differences
