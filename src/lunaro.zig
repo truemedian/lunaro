@@ -1842,7 +1842,8 @@ pub const State = opaque {
         }
 
         var ar: DebugInfo = undefined;
-        var buffer = Buffer.init(L);
+        var buffer: Buffer = undefined;
+        buffer.init(L);
 
         if (msg) |m| {
             buffer.addstring(m);
@@ -2071,7 +2072,7 @@ pub const State = opaque {
             L.push(tname);
             L.setfield(-2, "__name");
 
-            if (c.LUA_VERSION_NUM <= 503 and (metatable == null or metatable != null and !@hasField(metatable.?, "__tostring"))) {
+            if (c.LUA_VERSION_NUM <= 503 and (metatable == null or metatable != null and !@hasDecl(metatable.?, "__tostring"))) {
                 L.pushvalue(-1);
                 L.pushclosure_unwrapped(wrapCFn(resource__tostring), 1);
                 L.setfield(-2, "__tostring");
@@ -2105,130 +2106,109 @@ pub const State = opaque {
         L.pushstring(@errorName(err));
     }
 
-    fn check_typeerror(L: *State, srcloc: ?std.builtin.SourceLocation, label: ?[]const u8, comptime source: []const u8, comptime expected: []const u8, index: Index) noreturn {
-        var to_concat: u8 = 0;
-        if (srcloc) |src| {
-            _ = L.pushfstring("%s[%s]:%d:%d: ", .{ src.file, src.fn_name, src.line, src.column });
-            to_concat += 1;
+    const CheckTraceback = struct {
+        stack: [3][]const u8,
+        extra: usize,
+        len: u8,
+
+        pub fn push(tb: *CheckTraceback, label: []const u8) void {
+            if (tb.len < tb.stack.len) {
+                tb.stack[tb.len] = label;
+                tb.len += 1;
+            } else {
+                tb.extra += 1;
+            }
         }
 
-        if (label) |lbl| {
-            _ = L.pushfstring("(%s) ", .{lbl});
-            to_concat += 1;
+        pub fn pop(tb: *CheckTraceback) void {
+            if (tb.extra > 0) {
+                tb.extra -= 1;
+            } else if (tb.len > 0) {
+                tb.len -= 1;
+            }
         }
 
-        if (source.len > 0) {
-            _ = L.pushfstring("%s: ", .{literal(source)});
-            to_concat += 1;
+        pub fn print(tb: *const CheckTraceback, writer: anytype) !void {
+            for (tb.stack[0..tb.len]) |label| {
+                try writer.writeAll(label);
+            }
+
+            if (tb.extra > 0) {
+                try writer.print("...({d} more)", .{tb.extra});
+            }
+        }
+    };
+
+    fn check_throw(L: *State, srcinfo: std.builtin.SourceLocation, label: Index, tb: *const CheckTraceback, comptime fmt: []const u8, args: anytype) noreturn {
+        var buffer: Buffer = undefined;
+        buffer.init(L);
+
+        var buffered = std.io.bufferedWriter(buffer.writer());
+        const writer = buffered.writer();
+
+        writer.print("{s}:{d}:{d}: in {s}:", .{ srcinfo.file, srcinfo.line, srcinfo.column, srcinfo.fn_name }) catch unreachable;
+
+        if (label > 0) {
+            writer.print(" (arg #{d})", .{label}) catch unreachable;
         }
 
-        _ = L.pushfstring("expected " ++ expected ++ ", got %s", .{L.typenameof(index).ptr});
+        tb.print(writer) catch unreachable;
 
-        if (to_concat > 0)
-            L.concat(to_concat + 1);
+        writer.writeByte(' ') catch unreachable;
+        writer.print(fmt, args) catch unreachable;
+
+        buffered.flush() catch unreachable;
+        buffer.final();
 
         L.throw();
     }
 
-    fn check_strerror(L: *State, srcloc: ?std.builtin.SourceLocation, label: ?[]const u8, comptime source: []const u8, comptime expected: []const u8, str: [:0]const u8) noreturn {
-        var to_concat: u8 = 0;
-        if (srcloc) |src| {
-            _ = L.pushfstring("%s[%s]:%d:%d: ", .{ src.file, src.fn_name, src.line, src.column });
-            to_concat += 1;
-        }
-
-        if (label) |lbl| {
-            _ = L.pushfstring("(%s) ", .{lbl});
-            to_concat += 1;
-        }
-
-        if (source.len > 0) {
-            _ = L.pushfstring("%s: ", .{literal(source)});
-            to_concat += 1;
-        }
-
-        _ = L.pushfstring("expected " ++ expected ++ ", got %s", .{str.ptr});
-
-        if (to_concat > 0)
-            L.concat(to_concat + 1);
-
-        L.throw();
-    }
-
-    fn check_numerror(L: *State, srcloc: ?std.builtin.SourceLocation, label: ?[]const u8, comptime source: []const u8, comptime expected: []const u8, num: Integer) noreturn {
-        var to_concat: u8 = 0;
-        if (srcloc) |src| {
-            _ = L.pushfstring("%s[%s]:%d:%d: ", .{ src.file, src.fn_name, src.line, src.column });
-            to_concat += 1;
-        }
-
-        if (label) |lbl| {
-            _ = L.pushfstring("(%s) ", .{lbl});
-            to_concat += 1;
-        }
-
-        if (source.len > 0) {
-            _ = L.pushfstring("%s: ", .{literal(source)});
-            to_concat += 1;
-        }
-
-        _ = L.pushfstring("expected " ++ expected ++ ", got %d", .{num});
-
-        if (to_concat > 0)
-            L.concat(to_concat + 1);
-
-        L.throw();
-    }
-
-    fn checkInternal(L: *State, srcloc: ?std.builtin.SourceLocation, label: ?[]const u8, comptime name: []const u8, comptime T: type, idx: Index, allocator: anytype) T {
+    fn checkInternal(L: *State, comptime T: type, idx: Index, allocator: anytype, label: Index, tb: *CheckTraceback, srcinfo: std.builtin.SourceLocation) T {
         switch (@typeInfo(T)) {
             .Bool => {
                 if (!L.isboolean(idx))
-                    L.check_typeerror(srcloc, label, name, "boolean", idx);
+                    check_throw(L, srcinfo, label, tb, "expected boolean, got {s}", .{L.typenameof(idx)});
 
                 return L.toboolean(idx);
             },
             .Int => {
                 if (!L.isinteger(idx))
-                    L.check_typeerror(srcloc, label, name, "integer", idx);
-
-                const err_range = comptime comptimePrint("number in range [{d}, {d}]", .{ std.math.minInt(T), std.math.maxInt(T) });
+                    check_throw(L, srcinfo, label, tb, "expected integer, got {s}", .{L.typenameof(idx)});
 
                 const num = L.tointeger(idx);
                 return std.math.cast(T, num) orelse
-                    L.check_numerror(srcloc, label, name, err_range, num);
+                    check_throw(L, srcinfo, label, tb, "expected number in range [{d}, {d}], got {d}", .{ std.math.minInt(T), std.math.maxInt(T), num });
             },
             .Float => {
                 if (!L.isnumber(idx))
-                    L.check_typeerror(srcloc, label, name, "number", idx);
+                    check_throw(L, srcinfo, label, tb, "expected number, got {s}", .{L.typenameof(idx)});
 
                 return @floatCast(L.tonumber(idx));
             },
             .Array => |info| {
                 if (info.child == u8 and L.isstring(idx)) {
-                    const err_len = comptime comptimePrint("string of length {d}", .{info.len});
-
                     const str = L.tostring(idx).?;
                     if (str.len != info.len)
-                        L.check_numerror(srcloc, label, name, err_len, @intCast(str.len));
+                        check_throw(L, srcinfo, label, tb, "expected table of length {d}, got {d}", .{ info.len, str.len });
 
                     return str[0..info.len].*;
                 }
 
                 if (!L.istable(idx))
-                    L.check_typeerror(srcloc, label, name, "table", idx);
-
-                const err_len = comptime comptimePrint("table of length {d}", .{info.len});
+                    check_throw(L, srcinfo, label, tb, "expected table, got {s}", .{L.typenameof(idx)});
 
                 const tlen = L.lenof(idx);
                 if (tlen != info.len)
-                    L.check_numerror(srcloc, label, name, err_len, tlen);
+                    check_throw(L, srcinfo, label, tb, "expected table of length {d}, got {d}", .{ info.len, tlen });
 
                 var res: T = undefined;
 
                 for (res[0..], 0..) |*slot, i| {
                     _ = L.rawgeti(idx, @as(Integer, @intCast(i)) + 1);
-                    slot.* = L.checkInternal(srcloc, label, name ++ "[]", info.child, -1, allocator);
+
+                    tb.push("[]");
+                    slot.* = L.checkInternal(info.child, -1, allocator, label, tb, srcinfo);
+                    tb.pop();
                 }
 
                 L.pop(info.len);
@@ -2236,22 +2216,25 @@ pub const State = opaque {
             },
             .Struct => |info| {
                 if (!L.istable(idx))
-                    L.check_typeerror(srcloc, label, name, "table", idx);
+                    check_throw(L, srcinfo, label, tb, "expected table, got {s}", .{L.typenameof(idx)});
 
                 var res: T = undefined;
 
                 inline for (info.fields) |field| {
                     _ = L.getfield(idx, literal(field.name));
-                    @field(res, field.name) = L.checkInternal(srcloc, label, name ++ "." ++ field.name, field.type, -1, allocator);
+
+                    tb.push("." ++ field.name);
+                    @field(res, field.name) = L.checkInternal(field.type, -1, allocator, label, tb, srcinfo);
+                    tb.pop();
                 }
 
                 L.pop(info.fields.len);
                 return res;
             },
             .Pointer => |info| {
-                if (comptime std.meta.trait.isZigString(T)) {
+                if (comptime isZigString(T)) {
                     if (!L.isstring(idx))
-                        L.check_typeerror(srcloc, label, name, "string", idx);
+                        check_throw(L, srcinfo, label, tb, "expected string, got {s}", .{L.typenameof(idx)});
 
                     if (!info.is_const) {
                         if (allocator == null) @compileError("cannot allocate non-const string, use checkAlloc instead");
@@ -2267,13 +2250,13 @@ pub const State = opaque {
                 switch (info.size) {
                     .One, .Many, .C => {
                         if (!L.isuserdata(idx))
-                            L.check_typeerror(srcloc, label, name, "userdata", idx);
+                            check_throw(L, srcinfo, label, tb, "expected userdata, got {s}", .{L.typenameof(idx)});
 
                         return @ptrCast(L.touserdata(idx).? orelse unreachable);
                     },
                     .Slice => {
                         if (!L.istable(idx))
-                            L.check_typeerror(srcloc, label, name, "table", idx);
+                            check_throw(L, srcinfo, label, tb, "expected table, got {s}", .{L.typenameof(idx)});
 
                         if (allocator == null) @compileError("cannot allocate slice, use checkAlloc instead");
 
@@ -2285,7 +2268,10 @@ pub const State = opaque {
 
                         for (ptr[0..], 0..) |*slot, i| {
                             _ = L.rawgeti(idx, @as(Integer, @intCast(i)) + 1);
-                            slot.* = L.checkInternal(srcloc, label, name ++ "[]", info.child, -1, allocator);
+
+                            tb.push("[]");
+                            slot.* = L.checkInternal(info.child, -1, allocator, label, tb, srcinfo);
+                            tb.pop();
                         }
 
                         L.pop(slen);
@@ -2296,18 +2282,25 @@ pub const State = opaque {
             .Optional => |info| {
                 if (L.isnoneornil(idx)) return null;
 
-                return L.checkInternal(srcloc, label, name ++ ".?", info.child, idx, allocator);
+                tb.push(".?");
+                defer tb.pop();
+
+                return L.checkInternal(info.child, idx, allocator, label, tb, srcinfo);
             },
             .Enum => |info| {
                 if (L.isnumber(idx)) {
                     const value = @as(info.tag_type, @intCast(L.tointeger(idx)));
-                    return @enumFromInt(value);
+
+                    return std.meta.intToEnum(T, value) catch
+                        check_throw(L, srcinfo, label, tb, "invalid enum value '{d}' for {s}", .{ value, @typeName(T) });
                 } else if (L.isstring(idx)) {
                     const value = L.tostring(idx) orelse unreachable;
 
                     return std.meta.stringToEnum(T, value) orelse
-                        L.check_strerror(srcloc, label, name, "member of " ++ @typeName(T), value);
-                } else L.check_typeerror(srcloc, label, name, "number or string", idx);
+                        check_throw(L, srcinfo, label, tb, "invalid enum value '{s}' for {s}", .{ value, @typeName(T) });
+                } else {
+                    check_throw(L, srcinfo, label, tb, "expected number or string, got {s}", .{L.typenameof(idx)});
+                }
             },
             else => @compileError("check not implemented for " ++ @typeName(T)),
         }
@@ -2316,14 +2309,28 @@ pub const State = opaque {
     /// [-0, +0, v] Checks that the value at the given index is of the given type. Returns the value.
     ///
     /// Cannot be called on a non-const string type or any non-string slice type, as they require allocation.
-    pub fn check(L: *State, comptime T: type, idx: Index) T {
-        return L.checkInternal("", T, idx, null);
+    pub fn check(L: *State, comptime T: type, idx: Index, srcinfo: std.builtin.SourceLocation) T {
+        var tb = CheckTraceback{
+            .stack = undefined,
+            .extra = 0,
+            .len = 0,
+        };
+        defer assert(tb.len == 0);
+
+        return L.checkInternal(T, idx, null, idx, &tb, srcinfo);
     }
 
     /// [-0, +0, v] Checks that the value at the given index is of the given type. Returns the value. Allows for
     /// types that require allocation.
-    pub fn checkAlloc(L: *State, comptime T: type, idx: Index, allocator: Allocator) T {
-        return L.checkInternal("", T, idx, allocator);
+    pub fn checkAlloc(L: *State, comptime T: type, idx: Index, allocator: Allocator, srcinfo: std.builtin.SourceLocation) T {
+        var tb = CheckTraceback{
+            .stack = undefined,
+            .extra = 0,
+            .len = 0,
+        };
+        defer assert(tb.len == 0);
+
+        return L.checkInternal(T, idx, allocator, idx, &tb, srcinfo);
     }
 
     /// [-0, +0, v] Checks that the value at the given index is of the given resource type. Returns a pointer to the
@@ -2581,14 +2588,10 @@ pub const Buffer = struct {
     buf: c.luaL_Buffer,
 
     /// [-0, +0, -] Initializes a buffer B. This function does not allocate any space.
-    pub fn init(L: *State) Buffer {
-        var res: Buffer = undefined;
-        res.state = L;
-        res.buf = std.mem.zeroes(c.luaL_Buffer);
+    pub fn init(buffer: *Buffer, L: *State) void {
+        buffer.state = L;
 
-        c.luaL_buffinit(L.to(), &res.buf);
-
-        return res;
+        c.luaL_buffinit(L.to(), &buffer.buf);
     }
 
     /// [-?, +?, m] Returns a slice of memory of at *most* `max_size` bytes where you can copy a string to be added
@@ -2641,7 +2644,7 @@ pub const Buffer = struct {
     }
 
     /// A Lua writer function that can be used to write to a string buffer.
-    pub fn write(L_opt: ?*c.lua_State, p: ?[*]const u8, sz: usize, ud: ?*anyopaque) callconv(.C) c_int {
+    pub fn luaWrite(L_opt: ?*c.lua_State, p: ?[*]const u8, sz: usize, ud: ?*anyopaque) callconv(.C) c_int {
         _ = L_opt;
         assert(ud != null);
         assert(p != null);
@@ -2650,6 +2653,17 @@ pub const Buffer = struct {
         buf.addstring(p.?[0..sz]);
 
         return 0;
+    }
+
+    pub fn write(buffer: *Buffer, bytes: []const u8) error{}!usize {
+        buffer.addstring(bytes);
+        return bytes.len;
+    }
+
+    pub const Writer = std.io.GenericWriter(*Buffer, error{}, write);
+
+    pub fn writer(buffer: *Buffer) Writer {
+        return Writer{ .context = buffer };
     }
 };
 
@@ -2840,7 +2854,7 @@ pub const Function = struct {
 
     /// [-0, +1, m] Pushes this function onto the stack of `to`. The `to` thread must be in the same state as this function.
     pub fn push(func: Function, to: *State) void {
-        func.state.geti(REGISTRYINDEX, func.ref);
+        assert(func.state.geti(REGISTRYINDEX, func.ref) == .function);
 
         if (to != func.state)
             func.state.xmove(to, 1);
