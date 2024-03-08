@@ -2058,7 +2058,10 @@ pub const State = opaque {
 
     /// [-0, +1, m] Registers a resource type with the given metatable.
     pub fn registerResource(L: *State, comptime T: type, comptime metatable: ?type) void {
-        const tname = literal(@typeName(T));
+        const tname = if (@hasDecl(T, "lunaro_typename"))
+            literal(T.lunaro_typename)
+        else
+            literal(@typeName(T));
 
         if (L.getmetatablefor(tname) != .table) {
             L.pop(1);
@@ -2069,8 +2072,10 @@ pub const State = opaque {
                 L.createtable(0, 1);
             }
 
-            L.push(tname);
-            L.setfield(-2, "__name");
+            if (metatable == null or metatable != null and !@hasDecl(metatable.?, "__name")) {
+                L.push(tname);
+                L.setfield(-2, "__name");
+            }
 
             if (c.LUA_VERSION_NUM <= 503 and (metatable == null or metatable != null and !@hasDecl(metatable.?, "__tostring"))) {
                 L.pushvalue(-1);
@@ -2087,9 +2092,12 @@ pub const State = opaque {
 
     /// [-0, +1, m] Creates a new resource of the given type.
     ///
-    /// `registerResource` must be called ((with this type) before this function.
+    /// `registerResource` must be called (with this type) before this function.
     pub fn resource(L: *State, comptime T: type) *align(@alignOf(usize)) T {
-        const tname = literal(@typeName(T));
+        const tname = if (@hasDecl(T, "lunaro_typename"))
+            literal(T.lunaro_typename)
+        else
+            literal(@typeName(T));
 
         const size = @sizeOf(T);
         const ptr = L.newuserdata(size);
@@ -2139,7 +2147,7 @@ pub const State = opaque {
         }
     };
 
-    fn check_throw(L: *State, srcinfo: std.builtin.SourceLocation, label: Index, tb: *const CheckTraceback, comptime fmt: []const u8, args: anytype) noreturn {
+    fn check_throw(L: *State, srcinfo: std.builtin.SourceLocation, label: Index, tb: ?*const CheckTraceback, comptime fmt: []const u8, args: anytype) noreturn {
         var buffer: Buffer = undefined;
         buffer.init(L);
 
@@ -2152,7 +2160,9 @@ pub const State = opaque {
             writer.print(" (arg #{d})", .{label}) catch unreachable;
         }
 
-        tb.print(writer) catch unreachable;
+        if (tb) |trace| {
+            trace.print(writer) catch unreachable;
+        }
 
         writer.writeByte(' ') catch unreachable;
         writer.print(fmt, args) catch unreachable;
@@ -2335,9 +2345,47 @@ pub const State = opaque {
 
     /// [-0, +0, v] Checks that the value at the given index is of the given resource type. Returns a pointer to the
     /// resource.
-    pub fn checkResource(L: *State, comptime T: type, arg: Index) *align(@alignOf(usize)) T {
-        const ptr = c.luaL_checkudata(to(L), arg, literal(@typeName(T))).?;
-        return @ptrCast(@alignCast(ptr));
+    pub fn checkResource(L: *State, comptime T: type, arg: Index, srcinfo: std.builtin.SourceLocation) *align(@alignOf(usize)) T {
+        const tname = if (@hasDecl(T, "lunaro_typename"))
+            literal(T.lunaro_typename)
+        else
+            literal(@typeName(T));
+
+        if (L.isuserdata(arg) and L.getmetatable(arg) and L.typeof(-1) == .table) {
+            if (L.getmetatablefor(tname) != .table) {
+                check_throw(L, srcinfo, arg, null, "attempt to check non-existent resource: '{s}'", .{tname});
+            }
+
+            if (!L.rawequal(-1, -2)) {
+                if (L.getfield(-1, "__name") == .string) {
+                    check_throw(L, srcinfo, arg, null, "expected resource '{s}', got '{s}'", .{ tname, L.tostring(-1).? });
+                } else {
+                    check_throw(L, srcinfo, arg, null, "expected resource '{s}', got userdata", .{tname});
+                }
+            }
+
+            L.pop(2);
+            return L.touserdata(T, arg).?;
+        }
+
+        check_throw(L, srcinfo, arg, null, "expected resource '{s}', got {s}", .{ tname, L.typenameof(arg) });
+    }
+
+    // [-0, +0, e] Checks that the value at the given index is a function or callable table
+    pub fn checkCallable(L: *State, idx: Index, srcinfo: std.builtin.SourceLocation) void {
+        const typ = L.typeof(idx);
+
+        switch (typ) {
+            .function => return,
+            .table, .userdata => if (L.getmetatable(idx) and L.typeof(-1) == .table) {
+                defer L.pop(2);
+
+                if (L.getfield(-1, "__call") == .function) return;
+            },
+            else => {},
+        }
+
+        check_throw(L, srcinfo, idx, null, "expected function, got {s}", .{L.typenameof(idx)});
     }
 
     /// [-0, +0, -] Returns a value representation of the value at an index, and stores a reference to that value if necessary
