@@ -15,7 +15,7 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const debug = b.option(bool, "debug", "Create a debug build of lua") orelse true;
     const strip = b.option(bool, "strip", "Strip debug information from static lua builds") orelse true;
-    const requested_lua = b.option(LuaVersion, "lua", "Version of lua to build against");
+    const requested_lua = b.option(LuaVersion, "lua", "Version of lua to build against") orelse .lua54;
 
     const disable_compat52 = b.option(bool, "disable-compat52", "Luajit only. Disable Lua 5.2 compat") orelse false;
     const disable_ffi = b.option(bool, "disable-ffi", "Luajit only. Disable FFI") orelse false;
@@ -23,163 +23,159 @@ pub fn build(b: *Build) void {
     const disable_gc64 = b.option(bool, "disable-gc64", "Luajit only. Disable GC64") orelse false;
 
     const optimize: std.builtin.OptimizeMode = if (debug) .Debug else .ReleaseSafe;
-    if (requested_lua) |req_lua| {
-        // Lua Shared Library
+    // Lua Shared Library
 
-        const lua_shared = b.addSharedLibrary(.{
-            .name = "lua-shared",
+    const lua_shared = b.addSharedLibrary(.{
+        .name = "lua-shared",
+        .optimize = optimize,
+        .target = target,
+    });
+
+    lua_shared.root_module.strip = strip;
+
+    configureLuaLibrary(b, target, lua_shared, requested_lua, .{
+        .debug = debug,
+
+        .compat52 = !disable_compat52,
+        .disable_ffi = disable_ffi,
+        .disable_jit = disable_jit,
+        .disable_gc64 = disable_gc64,
+    });
+
+    const module_shared = b.addModule("lunaro-shared", .{
+        .root_source_file = .{ .path = "src/lunaro.zig" },
+    });
+
+    module_shared.linkLibrary(lua_shared);
+
+    // Lua Static Library
+
+    const lua_static = b.addStaticLibrary(.{
+        .name = "lua-static",
+        .optimize = optimize,
+        .target = target,
+    });
+
+    lua_static.root_module.strip = strip;
+
+    configureLuaLibrary(b, target, lua_static, requested_lua, .{
+        .debug = debug,
+
+        .compat52 = !disable_compat52,
+        .disable_ffi = disable_ffi,
+        .disable_jit = disable_jit,
+        .disable_gc64 = disable_gc64,
+    });
+
+    const module_static = b.addModule("lunaro-static", .{
+        .root_source_file = .{ .path = "src/lunaro.zig" },
+    });
+
+    module_static.linkLibrary(lua_static);
+
+    // Lua System Library
+
+    const module_system = b.addModule("lunaro-system", .{
+        .root_source_file = .{ .path = "src/lunaro.zig" },
+        .target = target,
+    });
+
+    module_system.link_libc = true;
+    module_system.linkSystemLibrary(@tagName(requested_lua), .{ .needed = true, .use_pkg_config = .force });
+
+    // Lunaro Tests
+
+    const test_step = b.step("test", "Run tests");
+
+    {
+        const test_shared_exe = b.addTest(.{
+            .root_source_file = .{ .path = "src/lunaro.zig" },
             .optimize = optimize,
-            .target = target,
         });
 
-        lua_shared.root_module.strip = strip;
+        test_shared_exe.root_module.linkLibrary(lua_shared);
 
-        configureLuaLibrary(b, target, lua_shared, req_lua, .{
-            .debug = debug,
-
-            .compat52 = !disable_compat52,
-            .disable_ffi = disable_ffi,
-            .disable_jit = disable_jit,
-            .disable_gc64 = disable_gc64,
-        });
-
-        const module_shared = b.addModule("lunaro-shared", .{
-            .root_source_file = .{ .path = "src/lunaro.zig" },
-        });
-
-        module_shared.linkLibrary(lua_shared);
-
-        // Lua Static Library
-
-        const lua_static = b.addStaticLibrary(.{
-            .name = "lua-static",
+        const example_shared_exe = b.addExecutable(.{
+            .target = b.host,
+            .name = "example-shared",
+            .root_source_file = .{ .path = "src/test.zig" },
             .optimize = optimize,
-            .target = target,
         });
 
-        lua_static.root_module.strip = strip;
+        example_shared_exe.root_module.addImport("lunaro", module_shared);
 
-        configureLuaLibrary(b, target, lua_static, req_lua, .{
-            .debug = debug,
+        const example_shared_run = b.addRunArtifact(example_shared_exe);
+        example_shared_run.expectExitCode(0);
 
-            .compat52 = !disable_compat52,
-            .disable_ffi = disable_ffi,
-            .disable_jit = disable_jit,
-            .disable_gc64 = disable_gc64,
-        });
+        const install_example_shared = b.addInstallArtifact(example_shared_exe, .{});
+        example_shared_run.step.dependOn(&install_example_shared.step);
 
-        const module_static = b.addModule("lunaro-static", .{
+        const test_shared_step = b.step("test-shared", "Run tests for shared lua");
+        test_shared_step.dependOn(&test_shared_exe.step);
+        test_shared_step.dependOn(&example_shared_run.step);
+
+        test_step.dependOn(test_shared_step);
+    }
+
+    {
+        const test_static_exe = b.addTest(.{
             .root_source_file = .{ .path = "src/lunaro.zig" },
+            .optimize = optimize,
         });
 
-        module_static.linkLibrary(lua_static);
+        test_static_exe.root_module.linkLibrary(lua_static);
 
-        // Lua System Library
+        const example_static_exe = b.addExecutable(.{
+            .target = b.host,
+            .name = "example-static",
+            .root_source_file = .{ .path = "src/test.zig" },
+            .optimize = optimize,
+        });
 
-        const module_system = b.addModule("lunaro-system", .{
+        example_static_exe.root_module.addImport("lunaro", module_static);
+
+        const example_static_run = b.addRunArtifact(example_static_exe);
+        example_static_run.expectExitCode(0);
+
+        const install_example_static = b.addInstallArtifact(example_static_exe, .{});
+        example_static_run.step.dependOn(&install_example_static.step);
+
+        const test_static_step = b.step("test-static", "Run tests for static lua");
+        test_static_step.dependOn(&test_static_exe.step);
+        test_static_step.dependOn(&example_static_run.step);
+
+        test_step.dependOn(test_static_step);
+    }
+
+    {
+        const test_system_exe = b.addTest(.{
             .root_source_file = .{ .path = "src/lunaro.zig" },
-            .target = target,
+            .optimize = optimize,
         });
 
-        module_system.link_libc = true;
-        module_system.linkSystemLibrary(@tagName(req_lua), .{ .needed = true, .use_pkg_config = .force });
+        test_system_exe.root_module.link_libc = true;
+        test_system_exe.root_module.linkSystemLibrary(@tagName(requested_lua), .{});
 
-        // Lunaro Tests
+        const example_system_exe = b.addExecutable(.{
+            .target = b.host,
+            .name = "example-system",
+            .root_source_file = .{ .path = "src/test.zig" },
+            .optimize = optimize,
+        });
 
-        const test_step = b.step("test", "Run tests");
+        example_system_exe.root_module.addImport("lunaro", module_system);
 
-        {
-            const test_shared_exe = b.addTest(.{
-                .root_source_file = .{ .path = "src/lunaro.zig" },
-                .optimize = optimize,
-            });
+        const example_system_run = b.addRunArtifact(example_system_exe);
+        example_system_run.expectExitCode(0);
 
-            test_shared_exe.root_module.linkLibrary(lua_shared);
+        const install_example_system = b.addInstallArtifact(example_system_exe, .{});
+        example_system_run.step.dependOn(&install_example_system.step);
 
-            const example_shared_exe = b.addExecutable(.{
-                .target = b.host,
-                .name = "example-shared",
-                .root_source_file = .{ .path = "src/test.zig" },
-                .optimize = optimize,
-            });
+        const test_system_step = b.step("test-system", "Run tests for system lua");
+        test_system_step.dependOn(&test_system_exe.step);
+        test_system_step.dependOn(&example_system_run.step);
 
-            example_shared_exe.root_module.addImport("lunaro", module_shared);
-
-            const example_shared_run = b.addRunArtifact(example_shared_exe);
-            example_shared_run.expectExitCode(0);
-
-            const install_example_shared = b.addInstallArtifact(example_shared_exe, .{});
-            example_shared_run.step.dependOn(&install_example_shared.step);
-
-            const test_shared_step = b.step("test-shared", "Run tests for shared lua");
-            test_shared_step.dependOn(&test_shared_exe.step);
-            test_shared_step.dependOn(&example_shared_run.step);
-
-            test_step.dependOn(test_shared_step);
-        }
-
-        {
-            const test_static_exe = b.addTest(.{
-                .root_source_file = .{ .path = "src/lunaro.zig" },
-                .optimize = optimize,
-            });
-
-            test_static_exe.root_module.linkLibrary(lua_static);
-
-            const example_static_exe = b.addExecutable(.{
-                .target = b.host,
-                .name = "example-static",
-                .root_source_file = .{ .path = "src/test.zig" },
-                .optimize = optimize,
-            });
-
-            example_static_exe.root_module.addImport("lunaro", module_static);
-
-            const example_static_run = b.addRunArtifact(example_static_exe);
-            example_static_run.expectExitCode(0);
-
-            const install_example_static = b.addInstallArtifact(example_static_exe, .{});
-            example_static_run.step.dependOn(&install_example_static.step);
-
-            const test_static_step = b.step("test-static", "Run tests for static lua");
-            test_static_step.dependOn(&test_static_exe.step);
-            test_static_step.dependOn(&example_static_run.step);
-
-            test_step.dependOn(test_static_step);
-        }
-
-        {
-            const test_system_exe = b.addTest(.{
-                .root_source_file = .{ .path = "src/lunaro.zig" },
-                .optimize = optimize,
-            });
-
-            test_system_exe.root_module.link_libc = true;
-            test_system_exe.root_module.linkSystemLibrary(@tagName(req_lua), .{});
-
-            const example_system_exe = b.addExecutable(.{
-                .target = b.host,
-                .name = "example-system",
-                .root_source_file = .{ .path = "src/test.zig" },
-                .optimize = optimize,
-            });
-
-
-            example_system_exe.root_module.addImport("lunaro", module_system);
-
-
-            const example_system_run = b.addRunArtifact(example_system_exe);
-            example_system_run.expectExitCode(0);
-
-            const install_example_system = b.addInstallArtifact(example_system_exe, .{});
-            example_system_run.step.dependOn(&install_example_system.step);
-
-            const test_system_step = b.step("test-system", "Run tests for system lua");
-            test_system_step.dependOn(&test_system_exe.step);
-            test_system_step.dependOn(&example_system_run.step);
-
-            test_step.dependOn(test_system_step);
-        }
+        test_step.dependOn(test_system_step);
     }
 
     const autodoc_test = b.addTest(.{
@@ -630,7 +626,7 @@ const FixDynasmPath = struct {
 
         const b = step.owner;
         const self = @fieldParentPtr(FixDynasmPath, "step", step);
-        
+
         const in_path = b.allocator.dupe(u8, self.input_path.getPath(b)) catch unreachable;
         std.mem.replaceScalar(u8, in_path, '\\', '/');
 
