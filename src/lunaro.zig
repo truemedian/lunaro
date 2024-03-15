@@ -10,7 +10,7 @@ const luaconf = @cImport({
 
 pub const is_luajit = @hasDecl(luaconf, "LUA_PROGNAME") and std.mem.eql(u8, luaconf.LUA_PROGNAME, "luajit");
 
-const c = @cImport({
+pub const c = @cImport({
     @cInclude("lua.h");
     @cInclude("lauxlib.h");
     @cInclude("lualib.h");
