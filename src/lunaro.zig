@@ -1934,6 +1934,7 @@ pub const State = opaque {
 
     /// [-0, +1, m] Pushes the given value onto the stack.
     ///
+    /// Strings and null terminated byte arrays are pushed as strings.
     /// Slices, arrays, vectors and tuples are pushed as a sequence (a table with sequential integer keys).
     /// Packed structs are pushed as their integer backed value.
     /// Normal and extern structs are pushed as a table.
@@ -1958,16 +1959,19 @@ pub const State = opaque {
                     return L.pushstring(value);
                 }
 
-                switch (info.size) {
-                    .One, .Many, .C => L.pushlightuserdata(value),
-                    .Slice => {
-                        L.createtable(@intCast(value.len), 0);
+                switch (T) {
+                    [*c]const u8, [*c]u8, [*:0]const u8, [*:0]u8 => c.lua_pushstring(to(L), value),
+                    else => switch (info.size) {
+                        .One, .Many, .C => L.pushlightuserdata(value),
+                        .Slice => {
+                            L.createtable(@intCast(value.len), 0);
 
-                        for (value, 0..) |item, i| {
-                            const idx = i + 1;
-                            L.push(item);
-                            L.rawseti(-2, @intCast(idx));
-                        }
+                            for (value, 0..) |item, i| {
+                                const idx = i + 1;
+                                L.push(item);
+                                L.rawseti(-2, @intCast(idx));
+                            }
+                        },
                     },
                 }
             },
@@ -2257,35 +2261,43 @@ pub const State = opaque {
                     return L.tostring(idx) orelse unreachable;
                 }
 
-                switch (info.size) {
-                    .One, .Many, .C => {
-                        if (!L.isuserdata(idx))
-                            check_throw(L, srcinfo, label, tb, "expected userdata, got {s}", .{L.typenameof(idx)});
+                switch (T) {
+                    [*c]const u8, [*:0]const u8 => {
+                        if (!L.isstring(idx))
+                            check_throw(L, srcinfo, label, tb, "expected string, got {s}", .{L.typenameof(idx)});
 
-                        return @ptrCast(L.touserdata(idx).? orelse unreachable);
+                        return c.lua_tolstring(to(L), idx, null).?;
                     },
-                    .Slice => {
-                        if (!L.istable(idx))
-                            check_throw(L, srcinfo, label, tb, "expected table, got {s}", .{L.typenameof(idx)});
+                    else => switch (info.size) {
+                        .One, .Many, .C => {
+                            if (!L.isuserdata(idx))
+                                check_throw(L, srcinfo, label, tb, "expected userdata, got {s}", .{L.typenameof(idx)});
 
-                        if (allocator == null) @compileError("cannot allocate slice, use checkAlloc instead");
+                            return @ptrCast(L.touserdata(anyopaque, idx).?);
+                        },
+                        .Slice => {
+                            if (!L.istable(idx))
+                                check_throw(L, srcinfo, label, tb, "expected table, got {s}", .{L.typenameof(idx)});
 
-                        const sentinel = if (info.sentinel) |ptr| @as(*const info.child, @ptrCast(ptr)).* else null;
+                            if (allocator == null) @compileError("cannot allocate slice, use checkAlloc instead");
 
-                        const slen = L.lenof(idx);
-                        const ptr = allocator.allocWithOptions(info.child, slen, info.alignment, sentinel) catch
-                            L.raise("out of memory", .{});
+                            const sentinel = if (info.sentinel) |ptr| @as(*const info.child, @ptrCast(ptr)).* else null;
 
-                        for (ptr[0..], 0..) |*slot, i| {
-                            _ = L.rawgeti(idx, @as(Integer, @intCast(i)) + 1);
+                            const slen = L.lenof(idx);
+                            const ptr = allocator.allocWithOptions(info.child, slen, info.alignment, sentinel) catch
+                                L.raise("out of memory", .{});
 
-                            tb.push("[]");
-                            slot.* = L.checkInternal(info.child, -1, allocator, label, tb, srcinfo);
-                            tb.pop();
-                        }
+                            for (ptr[0..], 0..) |*slot, i| {
+                                _ = L.rawgeti(idx, @as(Integer, @intCast(i)) + 1);
 
-                        L.pop(slen);
-                        return ptr;
+                                tb.push("[]");
+                                slot.* = L.checkInternal(info.child, -1, allocator, label, tb, srcinfo);
+                                tb.pop();
+                            }
+
+                            L.pop(slen);
+                            return ptr;
+                        },
                     },
                 }
             },
@@ -2425,7 +2437,7 @@ pub fn wrapAnyFn(func: anytype) CFn {
             var args: std.meta.ArgsTuple(@TypeOf(func)) = undefined;
 
             inline for (&args, 0..) |*slot, i| {
-                slot.* = L.check(@TypeOf(slot), i + 1);
+                slot.* = L.check(@TypeOf(slot), i + 1, @src());
             }
 
             return @call(.always_inline, func, args);
@@ -2485,7 +2497,7 @@ pub fn wrapCFn(func: anytype) CFn {
 const Allocator = std.mem.Allocator;
 
 /// Wraps a zig allocator to be used as a Lua allocator. This function should be used as the allocator function.
-/// The zig allocation should be passed as the `ud` argument to `initWithAlloc`.
+/// The `std.mem.Allocator` should be passed as the `ud` argument to `initWithAlloc`.
 pub fn luaAlloc(ud: ?*anyopaque, ptr: ?*anyopaque, oldsize: usize, newsize: usize) callconv(.C) ?*anyopaque {
     assert(ud != null);
 
@@ -2963,7 +2975,7 @@ pub const Function = struct {
                 defer func.state.pop(returns.many.len);
 
                 inline for (returns.many, 0..) |T, i| {
-                    ret[i] = func.state.check(T, prev_top + i + 1);
+                    ret[i] = func.state.check(T, prev_top + i + 1, @src());
                 }
 
                 return ret;

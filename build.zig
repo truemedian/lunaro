@@ -340,8 +340,8 @@ pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Bu
             buildvm_exe.root_module.sanitize_c = false;
             buildvm_exe.root_module.link_libc = true;
 
-            buildvm_exe.root_module.addIncludePath(FixIncludePath.init(b, luajit_h));
-            buildvm_exe.root_module.addIncludePath(FixIncludePath.init(b, buildvm_arch_header));
+            buildvm_exe.root_module.addIncludePath(luajit_h.dirname());
+            buildvm_exe.root_module.addIncludePath(buildvm_arch_header.dirname());
             buildvm_exe.root_module.addIncludePath(dep.path("src"));
 
             if (options.compat52)
@@ -471,12 +471,12 @@ pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Bu
             compile.step.dependOn(&buildvm_folddef.step);
 
             compile.linkLibC();
-            compile.addIncludePath(FixIncludePath.init(b, luajit_h));
-            compile.addIncludePath(FixIncludePath.init(b, bcdef_header));
-            compile.addIncludePath(FixIncludePath.init(b, ffdef_header));
-            compile.addIncludePath(FixIncludePath.init(b, libdef_header));
-            compile.addIncludePath(FixIncludePath.init(b, recdef_header));
-            compile.addIncludePath(FixIncludePath.init(b, folddef_header));
+            compile.addIncludePath(luajit_h.dirname());
+            compile.addIncludePath(bcdef_header.dirname());
+            compile.addIncludePath(ffdef_header.dirname());
+            compile.addIncludePath(libdef_header.dirname());
+            compile.addIncludePath(recdef_header.dirname());
+            compile.addIncludePath(folddef_header.dirname());
             compile.addIncludePath(dep.path("src"));
 
             installHeader(compile, dep.path("src/lua.h"), "lua.h");
@@ -553,48 +553,6 @@ pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Bu
     }
 }
 
-const FixIncludePath = struct {
-    step: Build.Step,
-
-    output_gen: Build.GeneratedFile,
-    input_path: Build.LazyPath,
-
-    pub fn init(b: *Build, path: Build.LazyPath) Build.LazyPath {
-        const self = b.allocator.create(FixIncludePath) catch unreachable;
-
-        self.step = Build.Step.init(.{
-            .id = .custom,
-            .name = "include-fix",
-            .owner = b,
-            .makeFn = make,
-        });
-
-        self.input_path = path;
-
-        self.output_gen.step = &self.step;
-        self.output_gen.path = null;
-
-        path.addStepDependencies(&self.step);
-
-        return .{ .generated = &self.output_gen };
-    }
-
-    pub fn make(step: *Build.Step, prog_node: *std.Progress.Node) anyerror!void {
-        _ = prog_node;
-
-        const self = @fieldParentPtr(FixIncludePath, "step", step);
-        self.output_gen.path = std.fs.path.dirname(self.input_path.getPath(step.owner)) orelse unreachable;
-
-        var all_cached = true;
-
-        for (step.dependencies.items) |dep| {
-            all_cached = all_cached and dep.result_cached;
-        }
-
-        step.result_cached = all_cached;
-    }
-};
-
 const FixDynasmPath = struct {
     step: Build.Step,
 
@@ -625,7 +583,7 @@ const FixDynasmPath = struct {
         _ = prog_node;
 
         const b = step.owner;
-        const self = @fieldParentPtr(FixDynasmPath, "step", step);
+        const self: *FixDynasmPath = @fieldParentPtr("step", step);
 
         const in_path = b.allocator.dupe(u8, self.input_path.getPath(b)) catch unreachable;
         std.mem.replaceScalar(u8, in_path, '\\', '/');
