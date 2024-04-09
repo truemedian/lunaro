@@ -2,15 +2,6 @@ const std = @import("std");
 
 const Build = std.Build;
 
-fn installHeader(c: *Build.Step.Compile, header: Build.LazyPath, name: []const u8) void {
-    const b = c.root_module.owner;
-
-    const install = b.addInstallFileWithDir(header, .header, name);
-
-    c.step.dependOn(&install.step);
-    c.installed_headers.append(&install.step) catch @panic("OOM");
-}
-
 pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const debug = b.option(bool, "debug", "Create a debug build of lua") orelse true;
@@ -183,7 +174,7 @@ pub fn build(b: *Build) void {
     });
 
     autodoc_test.linkLibC();
-    autodoc_test.linkSystemLibrary("lua");
+    autodoc_test.root_module.linkLibrary(lua_static);
 
     const install_docs = b.addInstallDirectory(.{
         .source_dir = autodoc_test.getEmittedDocs(),
@@ -235,10 +226,10 @@ pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Bu
         inline .lua51, .lua52, .lua53, .lua54 => |this_version| {
             compile.linkLibC();
 
-            installHeader(compile, dep.path("src/lua.h"), "lua.h");
-            installHeader(compile, dep.path("src/luaconf.h"), "luaconf.h");
-            installHeader(compile, dep.path("src/lualib.h"), "lualib.h");
-            installHeader(compile, dep.path("src/lauxlib.h"), "lauxlib.h");
+            compile.installHeader(dep.path("src/lua.h"), "lua.h");
+            compile.installHeader(dep.path("src/luaconf.h"), "luaconf.h");
+            compile.installHeader(dep.path("src/lualib.h"), "lualib.h");
+            compile.installHeader(dep.path("src/lauxlib.h"), "lauxlib.h");
 
             if (is_os_darwin) {
                 compile.root_module.addCMacro("LUA_USE_MACOSX", "1");
@@ -479,11 +470,11 @@ pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Bu
             compile.addIncludePath(folddef_header.dirname());
             compile.addIncludePath(dep.path("src"));
 
-            installHeader(compile, dep.path("src/lua.h"), "lua.h");
-            installHeader(compile, dep.path("src/luaconf.h"), "luaconf.h");
-            installHeader(compile, dep.path("src/lualib.h"), "lualib.h");
-            installHeader(compile, dep.path("src/lauxlib.h"), "lauxlib.h");
-            installHeader(compile, luajit_h, "luajit.h");
+            compile.installHeader(dep.path("src/lua.h"), "lua.h");
+            compile.installHeader(dep.path("src/luaconf.h"), "luaconf.h");
+            compile.installHeader(dep.path("src/lualib.h"), "lualib.h");
+            compile.installHeader(dep.path("src/lauxlib.h"), "lauxlib.h");
+            compile.installHeader(luajit_h, "luajit.h");
 
             inline for (files.luajit.core) |file| {
                 compile.addCSourceFile(.{
