@@ -43,7 +43,7 @@ pub fn main() !void {
 }
 
 pub fn testfn(L: *lunaro.State) bool {
-    const value = L.check([]const u8, 1, @src());
+    const value = L.check([]const u8, 1, .{ .source = @src() });
 
     expect(std.mem.eql(u8, value, "Hello, World!")) catch return false;
 
@@ -51,6 +51,6 @@ pub fn testfn(L: *lunaro.State) bool {
 }
 
 pub fn does_error(L: *lunaro.State) bool {
-    const value = L.check(bool, 1, @src());
+    const value = L.check(bool, 1, .{ .source = @src() });
     return value;
 }

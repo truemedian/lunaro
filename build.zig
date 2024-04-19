@@ -89,7 +89,7 @@ pub fn build(b: *Build) void {
         const example_shared_exe = b.addExecutable(.{
             .target = b.host,
             .name = "example-shared",
-            .root_source_file = .{ .path = "src/test.zig" },
+            .root_source_file = .{ .path = "test/test.zig" },
             .optimize = optimize,
         });
 
@@ -119,7 +119,7 @@ pub fn build(b: *Build) void {
         const example_static_exe = b.addExecutable(.{
             .target = b.host,
             .name = "example-static",
-            .root_source_file = .{ .path = "src/test.zig" },
+            .root_source_file = .{ .path = "test/test.zig" },
             .optimize = optimize,
         });
 
@@ -150,7 +150,7 @@ pub fn build(b: *Build) void {
         const example_system_exe = b.addExecutable(.{
             .target = b.host,
             .name = "example-system",
-            .root_source_file = .{ .path = "src/test.zig" },
+            .root_source_file = .{ .path = "test/test.zig" },
             .optimize = optimize,
         });
 
