@@ -1,0 +1,40 @@
+name: Macos
+
+on:
+  push:
+    paths:
+      - "**.zig"
+  pull_request:
+    paths:
+      - "**.zig"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: master
+
+      - name: Install Lua
+        run: brew install luajit
+
+      - name: Test Lua 5.1
+        run: zig build test -Dlua=lua51 -Dtest-system-lib=false
+        
+      - name: Test Lua 5.2
+        run: zig build test -Dlua=lua52 -Dtest-system-lib=false
+
+      - name: Test Lua 5.3
+        run: zig build test -Dlua=lua53 -Dtest-system-lib=false
+
+      - name: Test Lua 5.4
+        run: zig build test -Dlua=lua54 -Dtest-system-lib=false
+        
+      - name: Test Luajit
+        run: zig build test -Dlua=luajit

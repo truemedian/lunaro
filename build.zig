@@ -77,6 +77,7 @@ pub fn build(b: *Build) void {
     // Lunaro Tests
 
     const test_step = b.step("test", "Run tests");
+    const test_system = b.option(bool, "test-system-lib", "Run the lunaro tests against the system lua library") orelse true;
 
     {
         const test_shared_exe = b.addTest(.{
@@ -138,7 +139,7 @@ pub fn build(b: *Build) void {
         test_step.dependOn(test_static_step);
     }
 
-    {
+    if (test_system) {
         const test_system_exe = b.addTest(.{
             .root_source_file = .{ .path = "src/lunaro.zig" },
             .optimize = optimize,
@@ -234,7 +235,7 @@ pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Bu
             if (is_os_darwin) {
                 compile.root_module.addCMacro("LUA_USE_MACOSX", "1");
             } else if (is_os_windows) {
-                compile.root_module.addCMacro("LUA_USE_WINDOWS", "1");
+                compile.root_module.addCMacro("LUA_WIN", "1");
             } else {
                 compile.root_module.addCMacro("LUA_USE_POSIX", "1");
                 compile.root_module.addCMacro("LUA_USE_DLOPEN", "1");
