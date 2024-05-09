@@ -379,6 +379,7 @@ pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Bu
                 else => {},
             }
 
+            buildvm_exe.root_module.addCMacro("TARGET_OS_IPHONE", "0");
             switch (target.result.cpu.arch) {
                 .x86 => buildvm_exe.root_module.addCMacro("LUAJIT_TARGET", "LUAJIT_ARCH_x86"),
                 .x86_64 => buildvm_exe.root_module.addCMacro("LUAJIT_TARGET", "LUAJIT_ARCH_x64"),
