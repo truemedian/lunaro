@@ -10,7 +10,7 @@ Code using Lunaro can link against any Lua >= 5.1 library and work without issue
 
 ## Documentation
 
-Documentation is available at [pages.truemedian.me/lunaro](https://pages.truemedian.me/lunaro/#A;lunaro).
+Documentation is available at [pages.truemedian.me/lunaro](https://pages.truemedian.me/lunaro/#test.lunaro).
 
 ## Installation
 
