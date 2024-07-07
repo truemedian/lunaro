@@ -21,9 +21,12 @@ const assert = std.debug.assert;
 state: *State,
 buf: c.luaL_Buffer,
 
+pin_check: if (std.debug.runtime_safety) *const Buffer else void,
+
 /// [-0, +0, -] Initializes a buffer B. This function does not allocate any space.
 pub fn init(buffer: *Buffer, L: *State) void {
     buffer.state = L;
+    if (std.debug.runtime_safety) buffer.pin_check = buffer;
 
     c.luaL_buffinit(L.to(), &buffer.buf);
 }
@@ -31,6 +34,8 @@ pub fn init(buffer: *Buffer, L: *State) void {
 /// [-?, +?, m] Returns a slice of memory of at *most* `max_size` bytes where you can copy a string to be added
 /// to the buffer (see `commit`).
 pub fn reserve(buffer: *Buffer, max_size: usize) []u8 {
+    if (std.debug.runtime_safety) assert(buffer == buffer.pin_check);
+
     const ptr = if (lua_version >= 502)
         c.luaL_prepbuffsize(&buffer.buf, max_size)
     else
@@ -47,6 +52,8 @@ pub fn reserve(buffer: *Buffer, max_size: usize) []u8 {
 /// [-?, +?, -] Adds to the buffer a string of length `size` that had previously been copied into the buffer
 /// area provided by `reserve`.
 pub fn commit(buffer: *Buffer, size: usize) void {
+    if (std.debug.runtime_safety) assert(buffer == buffer.pin_check);
+
     // TODO: translate-c bug: c.luaL_addsize(&buffer.buf, size);
     if (lua_version >= 502) {
         buffer.buf.n += size;
@@ -64,16 +71,22 @@ pub fn addchar(buffer: *Buffer, char: u8) void {
 
 /// [-?, +?, m] Adds the string `str` to the buffer.
 pub fn addstring(buffer: *Buffer, str: []const u8) void {
+    if (std.debug.runtime_safety) assert(buffer == buffer.pin_check);
+
     c.luaL_addlstring(&buffer.buf, str.ptr, str.len);
 }
 
 /// [-1, +?, m] Adds the value at the top of the stack to the buffer. Pops the value.
 pub fn addvalue(buffer: *Buffer) void {
+    if (std.debug.runtime_safety) assert(buffer == buffer.pin_check);
+
     c.luaL_addvalue(&buffer.buf);
 }
 
 /// [-?, +1, m] Finishes the use of buffer B leaving the final string on the top of the stack.
 pub fn final(buffer: *Buffer) void {
+    if (std.debug.runtime_safety) assert(buffer == buffer.pin_check);
+
     c.luaL_pushresult(&buffer.buf);
 }
 

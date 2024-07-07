@@ -87,7 +87,7 @@ pub const State = opaque {
 
     /// [-0, +0, -] Sets a new panic function and returns the old one.
     pub fn atpanic(L: *State, panicf: anytype) CFn {
-        return c.lua_atpanic(to(L), lunaro.wrapAnyFn(panicf));
+        return c.lua_atpanic(to(L), lunaro.helpers.wrapAnyFn(panicf));
     }
 
     // basic stack manipulation
@@ -511,7 +511,7 @@ pub const State = opaque {
     /// [-n, +1, m] Pushes a new C closure onto the stack. Pops `n` values from the stack and sets the new closure's
     /// upvalues from the popped values.
     pub fn pushclosure(L: *State, comptime func: anytype, n: Size) void {
-        return c.lua_pushcclosure(to(L), lunaro.wrapAnyFn(func), n);
+        return c.lua_pushcclosure(to(L), lunaro.helpers.wrapAnyFn(func), n);
     }
 
     /// [-0, +1, -] Pushes a boolean value with value `value` onto the stack.

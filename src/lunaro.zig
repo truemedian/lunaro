@@ -160,7 +160,7 @@ pub const helpers = struct {
                     }
                 }
 
-                return @call(.always_inline, func, args);
+                return @call(.auto, func, args);
             }
         }.wrapped);
     }
@@ -192,7 +192,7 @@ pub const helpers = struct {
                 };
 
                 const scheck = safety.StackCheck.init(L);
-                const result = @call(.always_inline, func, .{L});
+                const result = @call(.auto, func, .{L});
 
                 if (T == c_int)
                     return scheck.check(func, L, result);

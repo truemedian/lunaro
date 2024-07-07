@@ -11,7 +11,7 @@ state: *State,
 ref: c_int,
 
 /// [-0, +0, -] Initializes a function from the value at the given index. This stores a reference to the function.
-/// 
+///
 /// Asserts that the value at the given index is a function.
 pub fn init(L: *State, index: lunaro.Index) Function {
     assert(L.typeof(index) == .function);
@@ -37,12 +37,14 @@ pub const ReturnType = union(enum) {
     none,
 
     /// Return a single Value of the first return.
+    /// The value is left on the stack.
     value,
 
     /// Return the number of return values left on the stack.
     all,
 
     /// Return a tuple of the given types.
+    /// The values are left on the stack.
     many: []const type,
 };
 
@@ -55,7 +57,7 @@ fn MakeCallReturn(comptime ret: ReturnType) type {
     }
 }
 
-/// [-0, +0, e] Calls this function with the given arguments and returns the result.
+/// [-0, +nargs, e] Calls this function with the given arguments and returns the result.
 pub fn call(func: Function, args: anytype, comptime returns: ReturnType) MakeCallReturn(returns) {
     const prev_top = func.state.gettop();
 
@@ -77,17 +79,15 @@ pub fn call(func: Function, args: anytype, comptime returns: ReturnType) MakeCal
 
     switch (returns) {
         .none => return,
-        .value => {
-            defer func.state.pop(1);
-
-            return Value.init(func.state, -1);
-        },
+        .value => return Value.init(func.state, -1),
         .all => return @intCast(func.state.gettop() - prev_top),
         .many => {
-            defer func.state.pop(returns.many.len);
-
             inline for (returns.many, 0..) |T, i| {
-                ret[i] = func.state.check(T, prev_top + i + 1, @src());
+                ret[i] = func.state.check(T, prev_top + i + 1, .{
+                    .source = @src(),
+                    .label_name = "return",
+                    .label = i,
+                });
             }
 
             return ret;
