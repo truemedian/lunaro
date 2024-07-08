@@ -45,3 +45,8 @@ pub const StackCheck = struct {
         return pushed;
     }
 };
+
+comptime {
+    if (@import("builtin").is_test)
+        std.testing.refAllDecls(StackCheck);
+}

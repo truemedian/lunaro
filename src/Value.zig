@@ -64,3 +64,8 @@ pub const Value = union(enum) {
         }
     }
 };
+
+comptime {
+    if (@import("builtin").is_test)
+        std.testing.refAllDecls(Value);
+}

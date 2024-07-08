@@ -94,3 +94,8 @@ pub fn call(func: Function, args: anytype, comptime returns: ReturnType) MakeCal
         },
     }
 }
+
+comptime {
+    if (@import("builtin").is_test)
+        std.testing.refAllDecls(Function);
+}

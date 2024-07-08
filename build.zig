@@ -4,7 +4,7 @@ const Build = std.Build;
 
 pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
-    const debug = b.option(bool, "debug", "Create a debug build of lua") orelse true;
+    const debug = b.option(bool, "debug", "Create a debug build of lua") orelse false;
     const strip = b.option(bool, "strip", "Strip debug information from static lua builds") orelse true;
     const requested_lua = b.option(LuaVersion, "lua", "Version of lua to build against") orelse .lua54;
 
@@ -34,7 +34,7 @@ pub fn build(b: *Build) void {
     });
 
     const module_shared = b.addModule("lunaro-shared", .{
-        .root_source_file = .{ .path = "src/lunaro.zig" },
+        .root_source_file = b.path("src/lunaro.zig"),
     });
 
     module_shared.linkLibrary(lua_shared);
@@ -59,7 +59,7 @@ pub fn build(b: *Build) void {
     });
 
     const module_static = b.addModule("lunaro-static", .{
-        .root_source_file = .{ .path = "src/lunaro.zig" },
+        .root_source_file = b.path("src/lunaro.zig"),
     });
 
     module_static.linkLibrary(lua_static);
@@ -67,7 +67,7 @@ pub fn build(b: *Build) void {
     // Lua System Library
 
     const module_system = b.addModule("lunaro-system", .{
-        .root_source_file = .{ .path = "src/lunaro.zig" },
+        .root_source_file = b.path("src/lunaro.zig"),
         .target = target,
     });
 
@@ -81,7 +81,7 @@ pub fn build(b: *Build) void {
 
     {
         const test_shared_exe = b.addTest(.{
-            .root_source_file = .{ .path = "src/lunaro.zig" },
+            .root_source_file = b.path("src/lunaro.zig"),
             .optimize = optimize,
         });
 
@@ -90,7 +90,7 @@ pub fn build(b: *Build) void {
         const example_shared_exe = b.addExecutable(.{
             .target = b.host,
             .name = "example-shared",
-            .root_source_file = .{ .path = "test/test.zig" },
+            .root_source_file = b.path("test/test.zig"),
             .optimize = optimize,
         });
 
@@ -111,7 +111,7 @@ pub fn build(b: *Build) void {
 
     {
         const test_static_exe = b.addTest(.{
-            .root_source_file = .{ .path = "src/lunaro.zig" },
+            .root_source_file = b.path("src/lunaro.zig"),
             .optimize = optimize,
         });
 
@@ -120,7 +120,7 @@ pub fn build(b: *Build) void {
         const example_static_exe = b.addExecutable(.{
             .target = b.host,
             .name = "example-static",
-            .root_source_file = .{ .path = "test/test.zig" },
+            .root_source_file = b.path("test/test.zig"),
             .optimize = optimize,
         });
 
@@ -141,7 +141,7 @@ pub fn build(b: *Build) void {
 
     if (test_system) {
         const test_system_exe = b.addTest(.{
-            .root_source_file = .{ .path = "src/lunaro.zig" },
+            .root_source_file = b.path("src/lunaro.zig"),
             .optimize = optimize,
         });
 
@@ -151,7 +151,7 @@ pub fn build(b: *Build) void {
         const example_system_exe = b.addExecutable(.{
             .target = b.host,
             .name = "example-system",
-            .root_source_file = .{ .path = "test/test.zig" },
+            .root_source_file =b.path("test/test.zig"),
             .optimize = optimize,
         });
 
@@ -171,7 +171,7 @@ pub fn build(b: *Build) void {
     }
 
     const autodoc_test = b.addTest(.{
-        .root_source_file = .{ .path = "src/lunaro.zig" },
+        .root_source_file = b.path("src/lunaro.zig"),
     });
 
     autodoc_test.linkLibC();
@@ -318,7 +318,7 @@ pub fn configureLuaLibrary(b: *Build, target: Build.ResolvedTarget, compile: *Bu
             const luajit_h_run = b.addRunArtifact(minilua);
             luajit_h_run.addFileArg(dep.path("src/host/genversion.lua"));
             luajit_h_run.addFileArg(dep.path("src/luajit_rolling.h"));
-            luajit_h_run.addFileArg(luajit_relver.files.items[0].getPath());
+            luajit_h_run.addFileArg(luajit_relver.getDirectory().path(b, "luajit_relver.txt"));
             const luajit_h = luajit_h_run.addOutputFileArg("luajit.h");
 
             // Create buildvm to generate necessary files
@@ -569,10 +569,10 @@ const FixDynasmPath = struct {
 
         path.addStepDependencies(&self.step);
 
-        return .{ .generated = &self.output_gen };
+        return .{ .generated = .{ .file = &self.output_gen } };
     }
 
-    pub fn make(step: *Build.Step, prog_node: *std.Progress.Node) anyerror!void {
+    pub fn make(step: *Build.Step, prog_node: std.Progress.Node) anyerror!void {
         _ = prog_node;
 
         const b = step.owner;

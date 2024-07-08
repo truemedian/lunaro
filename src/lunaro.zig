@@ -327,12 +327,4 @@ pub fn exportAs(comptime func: anytype, comptime name: []const u8) CFn {
 
 test {
     std.testing.refAllDecls(@This());
-
-    std.testing.refAllDecls(State);
-    std.testing.refAllDecls(Value);
-    std.testing.refAllDecls(Table);
-    std.testing.refAllDecls(Buffer);
-    std.testing.refAllDecls(Function);
-
-    std.testing.refAllDecls(helpers);
 }

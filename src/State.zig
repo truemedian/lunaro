@@ -2064,3 +2064,8 @@ test isZigString {
     try std.testing.expect(!isZigString(*allowzero [4]u8));
     try std.testing.expect(!isZigString(*volatile [4]u8));
 }
+
+comptime {
+    if (@import("builtin").is_test)
+        std.testing.refAllDecls(State);
+}

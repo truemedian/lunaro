@@ -67,3 +67,8 @@ pub fn setValue(table: Table, key: anytype, value: anytype) void {
     table.state.settable(-3);
     table.state.pop(1);
 }
+
+comptime {
+    if (@import("builtin").is_test)
+        std.testing.refAllDecls(Table);
+}

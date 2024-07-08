@@ -112,3 +112,8 @@ pub const Writer = std.io.GenericWriter(*Buffer, error{}, write);
 pub fn writer(buffer: *Buffer) Writer {
     return Writer{ .context = buffer };
 }
+
+comptime {
+    if (@import("builtin").is_test)
+        std.testing.refAllDecls(Buffer);
+}
