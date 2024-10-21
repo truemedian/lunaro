@@ -35,11 +35,11 @@ pub fn push(table: Table, to: *State) void {
 }
 
 /// [-0, +1, e] Gets the value at the given key in this table and pushes it onto the stack.
-pub fn get(table: Table, key: anytype) void {
+pub fn get(table: Table, key: anytype) lunaro.Type {
     assert(table.state.geti(lunaro.REGISTRYINDEX, table.ref) == .table);
+    defer table.state.pop(1);
     table.state.push(key);
-    table.state.gettable(-2);
-    table.state.remove(-2);
+    return table.state.gettable(-2);
 }
 
 /// [-0, +0, e] Gets the value at the given key in this table as a Value.
