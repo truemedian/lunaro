@@ -865,6 +865,8 @@ pub const State = opaque {
     /// If the resulting function has upvalues, its first upvalue is set to the value of the global environment.
     /// When loading main chunks, this upvalue will be the _ENV variable. Other upvalues are initialized with nil.
     pub fn load(L: *State, reader: anytype, chunkname: [:0]const u8, mode: LoadMode) ThreadStatus {
+        if (@typeInfo(@TypeOf(reader)) != .Pointer)
+            @compileError("expected *LuaReader, got " ++ @typeName(@TypeOf(reader)));
         const read = @typeInfo(@TypeOf(reader)).Pointer.child.read;
 
         if (lua_version >= 502) {

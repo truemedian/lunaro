@@ -261,52 +261,52 @@ pub const helpers = struct {
     pub const ReaderState = struct {
         reader: std.io.AnyReader,
         buffer: [1024]u8 = undefined,
+
+        /// A `ReaderFn` that accepts a `helpers.ReaderState` as its user data. This provides a simple way
+        /// to read from a `std.io.AnyReader` in a Lua chunk.
+        ///
+        /// This is the function that will be used when a `helpers.ReaderState` is passed to any function that requires
+        /// a `ReaderFn`.
+        pub fn read(L_opt: ?*c.lua_State, ud: ?*anyopaque, size: ?*usize) callconv(.C) [*c]const u8 {
+            assert(L_opt != null);
+            assert(ud != null);
+            assert(size != null);
+
+            const L: *State = @ptrCast(L_opt.?);
+            const state: *ReaderState = @ptrCast(@alignCast(ud.?));
+
+            size.?.* = state.reader.read(state.buffer[0..]) catch |err| {
+                L.raise("wrapped lunaro reader returned an error: {s}", .{@errorName(err)});
+            };
+
+            return &state.buffer;
+        }
     };
-
-    /// A `ReaderFn` that accepts a `helpers.ReaderState` as its user data. This provides a simple way
-    /// to read from a `std.io.AnyReader` in a Lua chunk.
-    ///
-    /// This is the function that will be used when a `helpers.ReaderState` is passed to any function that requires
-    /// a `ReaderFn`.
-    pub fn read(L_opt: ?*c.lua_State, ud: ?*anyopaque, size: ?*usize) callconv(.C) [*c]const u8 {
-        assert(L_opt != null);
-        assert(ud != null);
-        assert(size != null);
-
-        const L: *State = @ptrCast(L_opt.?);
-        const state: *ReaderState = @ptrCast(@alignCast(ud.?));
-
-        size.?.* = state.reader.read(state.buffer[0..]) catch |err| {
-            L.raise("wrapped lunaro reader returned an error: {s}", .{@errorName(err)});
-        };
-
-        return &state.buffer;
-    }
 
     pub const WriterState = struct {
         writer: std.io.AnyWriter,
+
+        /// A `WriterFn` that accepts a `helpers.WriterState` as its user data. This provides a simple way
+        /// to write to a `std.io.AnyWriter` in a Lua chunk.
+        ///
+        /// This is the function that will be used when a `helpers.WriterState` is passed to any function that requires
+        /// a `WriterFn`.
+        pub fn write(L_opt: ?*c.lua_State, p: ?*const anyopaque, sz: usize, ud: ?*anyopaque) callconv(.C) c_int {
+            assert(L_opt != null);
+            assert(ud != null);
+            assert(p != null);
+
+            const L: *State = @ptrCast(L_opt.?);
+            const wrapper: *WriterState = @ptrCast(@alignCast(ud.?));
+            const ptr: [*]const u8 = @ptrCast(p.?);
+
+            wrapper.writer.writeAll(ptr[0..sz]) catch |err| {
+                L.raise("wrapped lunaro writer returned an error: {s}", .{@errorName(err)});
+            };
+
+            return 0;
+        }
     };
-
-    /// A `WriterFn` that accepts a `helpers.WriterState` as its user data. This provides a simple way
-    /// to write to a `std.io.AnyWriter` in a Lua chunk.
-    ///
-    /// This is the function that will be used when a `helpers.WriterState` is passed to any function that requires
-    /// a `WriterFn`.
-    pub fn write(L_opt: ?*c.lua_State, p: ?*const anyopaque, sz: usize, ud: ?*anyopaque) callconv(.C) c_int {
-        assert(L_opt != null);
-        assert(ud != null);
-        assert(p != null);
-
-        const L: *State = @ptrCast(L_opt.?);
-        const wrapper: *WriterState = @ptrCast(@alignCast(ud.?));
-        const ptr: [*]const u8 = @ptrCast(p.?);
-
-        wrapper.writer.writeAll(ptr[0..sz]) catch |err| {
-            L.raise("wrapped lunaro writer returned an error: {s}", .{@errorName(err)});
-        };
-
-        return 0;
-    }
 };
 
 /// Export a zig function as the entry point of a Lua module. This wraps the function and exports it as
