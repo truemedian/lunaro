@@ -655,7 +655,7 @@ pub fn buildLuajit(b: *Build) void {
 
     // not (ios or console or disable_jit)
     if (target_os.tag != .ios and // LJ_TARGET_IOS
-        target_os.tag != .ps3 and // LJ_TARGET_CONSOLE
+        target_os.tag != .lv2 and // LJ_TARGET_CONSOLE
         target_os.tag != .ps4 and // LJ_TARGET_CONSOLE
         target_os.tag != .ps5 and // LJ_TARGET_CONSOLE
         !disable_jit)
@@ -664,8 +664,8 @@ pub fn buildLuajit(b: *Build) void {
     }
 
     // not ((ppc and console) or disable_ffi)
-    if ((!target_cpu.arch.isPowerPC() or
-        (target_os.tag != .ps3 and
+    if ((!(target_cpu.arch.isPPC() or target_cpu.arch.isPPC64()) or
+        (target_os.tag != .lv2 and
         target_os.tag != .ps4 and
         target_os.tag != .ps5)) and
         !disable_ffi)
@@ -676,7 +676,8 @@ pub fn buildLuajit(b: *Build) void {
     if ((target_cpu.arch.isX86() and enable_dualnum) or
         target_cpu.arch.isARM() or
         target_cpu.arch.isAARCH64() or
-        target_cpu.arch.isPowerPC() or
+        target_cpu.arch.isPPC() or
+        target_cpu.arch.isPPC64() or
         target_cpu.arch.isMIPS())
     {
         dynasm_run.addArgs(&.{ "-D", "DUALNUM" });
@@ -684,7 +685,7 @@ pub fn buildLuajit(b: *Build) void {
 
     // Check for floating point emulation
     if ((target_cpu.arch.isARM() and isFeatureEnabled(target_cpu, std.Target.arm, "soft_float")) or // ARM
-        ((target_cpu.arch.isPowerPC()) and !isFeatureEnabled(target_cpu, std.Target.powerpc, "hard_float")) or // PPC
+        ((target_cpu.arch.isPPC() or target_cpu.arch.isPPC64()) and !isFeatureEnabled(target_cpu, std.Target.powerpc, "hard_float")) or // PPC
         (target_cpu.arch.isMIPS() and isFeatureEnabled(target_cpu, std.Target.mips, "soft_float"))) // MIPS
     {
         buildvm.root_module.addCMacro("LJ_ARCH_HASFPU", "0");
@@ -698,7 +699,7 @@ pub fn buildLuajit(b: *Build) void {
     }
 
     if (target_os.tag == .ios or // LJ_TARGET_IOS
-        target_os.tag == .ps3 or // LJ_TARGET_CONSOLE
+        target_os.tag == .lv2 or // LJ_TARGET_CONSOLE
         target_os.tag == .ps4 or // LJ_TARGET_CONSOLE
         target_os.tag == .ps5) // LJ_TARGET_CONSOLE
     {
@@ -725,7 +726,7 @@ pub fn buildLuajit(b: *Build) void {
         }
     } else if (target_cpu.arch.isAARCH64()) {
         dynasm_run.addArgs(&.{ "-D", "VER=80" });
-    } else if (target_cpu.arch.isPowerPC()) {
+    } else if (target_cpu.arch.isPPC() or target_cpu.arch.isPPC64()) {
         if (target_cpu.features.isSuperSetOf(std.Target.powerpc.cpu.pwr7.features)) {
             dynasm_run.addArgs(&.{ "-D", "VER=70" });
         } else if (target_cpu.features.isSuperSetOf(std.Target.powerpc.cpu.pwr6.features)) {
@@ -754,17 +755,17 @@ pub fn buildLuajit(b: *Build) void {
         dynasm_run.addArgs(&.{ "-D", "MIPSR6" });
     }
 
-    if (target_cpu.arch.isPowerPC()) {
+    if (target_cpu.arch.isPPC() or target_cpu.arch.isPPC64()) {
         if (isFeatureEnabled(target_cpu, std.Target.powerpc, "fsqrt"))
             dynasm_run.addArgs(&.{ "-D", "SQRT" });
 
-        if (target_os.tag == .ps3) {
+        if (target_os.tag == .lv2) {
             dynasm_run.addArgs(&.{ "-D", "PPE", "-D", "TOC" });
             buildvm.root_module.addCMacro("__CELLOS_LV2__", "1");
         }
     }
 
-    if (target_cpu.arch.isPowerPC() and (target_os.tag == .ps3 or target_os.tag == .ps4 or target_os.tag == .ps5))
+    if ((target_cpu.arch.isPPC() or target_cpu.arch.isPPC64()) and (target_os.tag == .lv2 or target_os.tag == .ps4 or target_os.tag == .ps5))
         dynasm_run.addArgs(&.{ "-D", "GPR64" });
 
     dynasm_run.addArg("-o");
@@ -808,7 +809,7 @@ pub fn buildLuajit(b: *Build) void {
 
     if (target_cpu.arch == .aarch64_be) {
         buildvm.root_module.addCMacro("__AARCH64EB__", "1");
-    } else if (target_cpu.arch.isPowerPC()) {
+    } else if (target_cpu.arch.isPPC() or target_cpu.arch.isPPC64()) {
         if (target_cpu.arch.endian() == .little) {
             buildvm.root_module.addCMacro("LJ_ARCH_ENDIAN", "LUAJIT_LE");
         } else {
