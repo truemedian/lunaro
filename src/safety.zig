@@ -29,14 +29,14 @@ pub const StackCheck = struct {
 
                 const debug_info = std.debug.getSelfDebugInfo() catch break :debuginfo;
                 const module = debug_info.getModuleForAddress(address) catch break :debuginfo;
-                const symbol_info: std.debug.SymbolInfo = module.getSymbolAtAddress(debug_info.allocator, address) catch break :debuginfo;
+                const symbol_info: std.debug.Symbol = module.getSymbolAtAddress(debug_info.allocator, address) catch break :debuginfo;
                 defer symbol_info.deinit(debug_info.allocator);
 
-                if (symbol_info.line_info) |info| {
-                    L.raise("stack check failed in %s at %s:%d (expected %d items but %d were pushed)", .{ symbol_info.symbol_name, info.file_name, info.line, pushed, new_top - self.top });
+                if (symbol_info.source_location) |info| {
+                    L.raise("stack check failed in %s at %s:%d (expected %d items but %d were pushed)", .{ symbol_info.name, info.file_name, info.line, pushed, new_top - self.top });
                 }
 
-                L.raise("stack check failed in %s (expected %d items but %d were pushed)", .{ symbol_info.symbol_name, pushed, new_top - self.top });
+                L.raise("stack check failed in %s (expected %d items but %d were pushed)", .{ symbol_info.name, pushed, new_top - self.top });
             }
 
             L.raise("stack check failed (expected %d items but %d were pushed)", .{ pushed, new_top - self.top });

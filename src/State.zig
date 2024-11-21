@@ -1252,7 +1252,7 @@ pub const State = opaque {
             const ArgsTuple = std.meta.Tuple(blk: {
                 var types: [args.len]type = undefined;
 
-                inline for (@typeInfo(@TypeOf(args)).Struct.fields, 0..) |field, i| {
+                inline for (@typeInfo(@TypeOf(args)).@"struct".fields, 0..) |field, i| {
                     if (field.type == [:0]const u8 or field.type == []const u8) {
                         types[i] = [*:0]const u8;
                     } else {
@@ -1487,11 +1487,11 @@ pub const State = opaque {
             return value.push(L);
 
         switch (@typeInfo(T)) {
-            .Void, .Null => L.pushnil(),
-            .Bool => L.pushboolean(value),
-            .Int, .ComptimeInt => L.pushinteger(@intCast(value)),
-            .Float, .ComptimeFloat => L.pushnumber(@floatCast(value)),
-            .Pointer => |info| {
+            .void, .null => L.pushnil(),
+            .bool => L.pushboolean(value),
+            .int, .comptime_int => L.pushinteger(@intCast(value)),
+            .float, .comptime_float => L.pushnumber(@floatCast(value)),
+            .pointer => |info| {
                 if (comptime isZigString(T)) {
                     return L.pushstring(value);
                 }
@@ -1512,7 +1512,7 @@ pub const State = opaque {
                     },
                 }
             },
-            .Array, .Vector => {
+            .array, .vector => {
                 L.createtable(@intCast(value.len), 0);
 
                 for (value, 0..) |item, i| {
@@ -1520,7 +1520,7 @@ pub const State = opaque {
                     L.rawseti(-2, i + 1);
                 }
             },
-            .Struct => |info| if (info.is_tuple) {
+            .@"struct" => |info| if (info.is_tuple) {
                 L.createtable(@intCast(info.fields.len), 0);
 
                 inline for (value, 0..) |item, i| {
@@ -1537,14 +1537,14 @@ pub const State = opaque {
                     L.setfield(-2, literal(field.name));
                 }
             },
-            .Optional => if (value) |u_value| {
+            .optional => if (value) |u_value| {
                 L.push(u_value);
             } else {
                 L.pushnil();
             },
-            .ErrorSet => L.pushstring(@errorName(value)),
-            .Enum => L.pushinteger(@intFromEnum(value)),
-            .Union => {
+            .error_set => L.pushstring(@errorName(value)),
+            .@"enum" => L.pushinteger(@intFromEnum(value)),
+            .@"union" => {
                 L.createtable(0, 1);
 
                 switch (value) {
@@ -1554,10 +1554,10 @@ pub const State = opaque {
                     },
                 }
             },
-            .Fn => L.pushclosure_unwrapped(lunaro.helpers.wrapAnyFn(value), 0),
-            .EnumLiteral => L.pushstring(@tagName(value)),
-            .Type => switch (@typeInfo(value)) {
-                .Struct => |info| {
+            .@"fn" => L.pushclosure_unwrapped(lunaro.helpers.wrapAnyFn(value), 0),
+            .enum_literal => L.pushstring(@tagName(value)),
+            .type => switch (@typeInfo(value)) {
+                .@"struct" => |info| {
                     L.createtable(0, @intCast(info.decls.len));
 
                     inline for (info.decls) |decl| {
@@ -1567,7 +1567,7 @@ pub const State = opaque {
                         }
                     }
                 },
-                .Enum => |info| {
+                .@"enum" => |info| {
                     L.createtable(0, @intCast(info.fields.len));
 
                     inline for (info.fields) |field| {
@@ -1575,7 +1575,7 @@ pub const State = opaque {
                         L.setfield(-2, literal(field.name));
                     }
                 },
-                .ErrorSet => |info| if (info) |fields| {
+                .error_set => |info| if (info) |fields| {
                     L.createtable(@intCast(fields.len), 0);
 
                     inline for (fields, 0..) |field, i| {
@@ -1736,13 +1736,13 @@ pub const State = opaque {
 
     fn checkInternal(L: *State, comptime T: type, idx: Index, options: CheckOptions, tb: *CheckTraceback) T {
         switch (@typeInfo(T)) {
-            .Bool => {
+            .bool => {
                 if (!L.isboolean(idx))
                     check_throw(L, options, tb, "expected boolean, got {s}", .{L.typenameof(idx)});
 
                 return L.toboolean(idx);
             },
-            .Int => {
+            .int => {
                 if (!L.isinteger(idx))
                     check_throw(L, options, tb, "expected integer, got {s}", .{L.typenameof(idx)});
 
@@ -1750,13 +1750,13 @@ pub const State = opaque {
                 return std.math.cast(T, num) orelse
                     check_throw(L, options, tb, "expected number in range [{d}, {d}], got {d}", .{ std.math.minInt(T), std.math.maxInt(T), num });
             },
-            .Float => {
+            .float => {
                 if (!L.isnumber(idx))
                     check_throw(L, options, tb, "expected number, got {s}", .{L.typenameof(idx)});
 
                 return @floatCast(L.tonumber(idx));
             },
-            .Array => |info| {
+            .array => |info| {
                 if (info.child == u8 and L.isstring(idx)) {
                     const str = L.tostring(idx).?;
                     if (str.len != info.len)
@@ -1785,7 +1785,7 @@ pub const State = opaque {
                 L.pop(info.len);
                 return res;
             },
-            .Struct => |info| {
+            .@"struct" => |info| {
                 if (!L.istable(idx))
                     check_throw(L, options, tb, "expected table, got {s}", .{L.typenameof(idx)});
 
@@ -1802,7 +1802,7 @@ pub const State = opaque {
                 L.pop(info.fields.len);
                 return res;
             },
-            .Pointer => |info| {
+            .pointer => |info| {
                 if (comptime isZigString(T)) {
                     if (!L.isstring(idx))
                         check_throw(L, options, tb, "expected string, got {s}", .{L.typenameof(idx)});
@@ -1860,7 +1860,7 @@ pub const State = opaque {
                     },
                 }
             },
-            .Optional => |info| {
+            .optional => |info| {
                 if (L.isnoneornil(idx)) return null;
 
                 tb.push(".?");
@@ -1868,7 +1868,7 @@ pub const State = opaque {
 
                 return L.checkInternal(info.child, idx, options, tb);
             },
-            .Enum => |info| {
+            .@"enum" => |info| {
                 if (L.isnumber(idx)) {
                     const value = @as(info.tag_type, @intCast(L.tointeger(idx)));
 
@@ -2005,9 +2005,9 @@ inline fn isZigString(comptime T: type) bool {
     return blk: {
         // Only pointer types can be strings, no optionals
         const info = @typeInfo(T);
-        if (info != .Pointer) break :blk false;
+        if (info != .pointer) break :blk false;
 
-        const ptr = &info.Pointer;
+        const ptr = &info.pointer;
         // Check for CV qualifiers that would prevent coerction to []const u8
         if (ptr.is_volatile or ptr.is_allowzero) break :blk false;
 
@@ -2019,8 +2019,8 @@ inline fn isZigString(comptime T: type) bool {
         // Otherwise check if it's an array type that coerces to slice.
         if (ptr.size == .One) {
             const child = @typeInfo(ptr.child);
-            if (child == .Array) {
-                const arr = &child.Array;
+            if (child == .array) {
+                const arr = &child.array;
                 break :blk arr.child == u8;
             }
         }

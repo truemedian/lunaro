@@ -134,9 +134,9 @@ pub const helpers = struct {
         if (@TypeOf(func) == CFn) return func;
 
         const info = switch (@typeInfo(@TypeOf(func))) {
-            .Fn => |info_Fn| info_Fn,
-            .Pointer => |info_Pointer| switch (@typeInfo(info_Pointer.child)) {
-                .Fn => |info_Fn| info_Fn,
+            .@"fn" => |info_Fn| info_Fn,
+            .pointer => |info_Pointer| switch (@typeInfo(info_Pointer.child)) {
+                .@"fn" => |info_Fn| info_Fn,
                 else => @compileError("expected a `fn(X...) Y` or `*const fn(X...) Y`"),
             },
             else => @compileError("expected a `fn(X...) Y` or `*const fn(X...) Y`"),
@@ -173,9 +173,9 @@ pub const helpers = struct {
         if (@TypeOf(func) == CFn) return func;
 
         const info = switch (@typeInfo(@TypeOf(func))) {
-            .Fn => |info_Fn| info_Fn,
-            .Pointer => |info_Pointer| switch (@typeInfo(info_Pointer.child)) {
-                .Fn => |info_Fn| info_Fn,
+            .@"fn" => |info_Fn| info_Fn,
+            .pointer => |info_Pointer| switch (@typeInfo(info_Pointer.child)) {
+                .@"fn" => |info_Fn| info_Fn,
                 else => @compileError("expected a `fn(*State) X` or `*const fn(*State) X`"),
             },
             else => @compileError("expected a `fn(*State) X` or `*const fn(*State) X`"),
@@ -187,7 +187,7 @@ pub const helpers = struct {
                 const T = info.return_type.?;
 
                 const top = switch (@typeInfo(T)) {
-                    .ErrorUnion => L.gettop(),
+                    .error_union => L.gettop(),
                     else => {},
                 };
 
@@ -198,8 +198,8 @@ pub const helpers = struct {
                     return scheck.check(func, L, result);
 
                 switch (@typeInfo(T)) {
-                    .Void => return scheck.check(func, L, 0),
-                    .ErrorUnion => |err_info| {
+                    .void => return scheck.check(func, L, 0),
+                    .error_union => |err_info| {
                         const actual_result = result catch |err| {
                             L.settop(top);
                             L.pusherror(err);
