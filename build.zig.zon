@@ -12,24 +12,29 @@
     },
     .dependencies = .{
         .luajit = .{
-            .url = "git+https://github.com/Luajit/Luajit#0d313b243194a0b8d2399d8b549ca5a0ff234db5",
-            .hash = "12201193d83879c9c61d6ff640cbcf3d36cd4b2094453163bf641a290b8d22a81583",
+            .url = "https://github.com/Luajit/Luajit/archive/fe71d0fb54ceadfb5b5f3b6baf29e486d97f6059.tar.gz",
+            .hash = "12202c64ab920cbebafd26f6e88c96595ff232db7ed6f01d335bbfda96c1025be4a4",
+            .lazy = true,
         },
         .lua54 = .{
             .url = "https://www.lua.org/ftp/lua-5.4.6.tar.gz",
             .hash = "1220f93ada1fa077ab096bf88a5b159ad421dbf6a478edec78ddb186d0c21d3476d9",
+            .lazy = true,
         },
         .lua53 = .{
             .url = "https://www.lua.org/ftp/lua-5.3.6.tar.gz",
             .hash = "1220937a223531ef6b3fea8f653dc135310b0e84805e7efa148870191f5ab915c828",
+            .lazy = true,
         },
         .lua52 = .{
             .url = "https://www.lua.org/ftp/lua-5.2.4.tar.gz",
             .hash = "1220d5b2b39738f0644d9ed5b7431973f1a16b937ef86d4cf85887ef3e9fda7a3379",
+            .lazy = true,
         },
         .lua51 = .{
             .url = "https://www.lua.org/ftp/lua-5.1.5.tar.gz",
             .hash = "1220089572fb380fb4679b16421fc53851a8226bcebc9ce44463a0f4ada5c9bd737f",
+            .lazy = true,
         },
     },
 }

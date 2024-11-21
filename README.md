@@ -32,7 +32,7 @@ The following sections contain code for a `build.zig` for the different ways to 
 
 ### As a Library
 
-First, link against Lua dynamically (as seen in the [Dynamic Linking](#dynamic-linking) section).
+First, link against Lua dynamically (as seen in the [Linking](#linking) section).
 
 Then add the following to your library:
 
@@ -52,23 +52,22 @@ comptime {
 
 This exports the `mylibrary` function (following `lunaro.wrapFn` rules) as `luaopen_mylibrary` so that it can be required from lua.
 
-### Dynamic Linking
+### Linking
 
 #### Using System Libraries
 
 ```zig
 const lunaro = b.dependency("lunaro", .{});
+const lunaro_module = lunaro.module("lunaro");
 
-exe.addModule(lunaro.module("lunaro-system"));
+lunaro_module.linkSystemLibrary("lua", .{ .use_pkg_config = .force }); // or whatever the name of the lua library is under pkg-config
 
-// TODO: the following is no longer applicable, I need to find a way for the user to pass this information into lunaro.
+// // if pkg-config isn't available, you'll need to add the include path and library path manually
+// lunaro_module.addIncludePath(.{ .cwd_relative = "/usr/include/lua5.3" }); // this directory should contain lua.h
+// lunaro_module.addLibraryPath(.{ .cwd_relative = "/usr/lib/lua5.3" }); // this directory should contain the required liblua.so
+// lunaro_module.linkSystemLibrary("lua5.3", .{}); // this should be the name of the lua library to link against
 
-exe.linkSystemLibrary("lua"); // or whatever the name of the lua library is under pkg-config
-
-// if pkg-config isn't available, you'll need to add the include path and library path manually
-// exe.addIncludePath("/usr/include/lua5.3"); // this directory should contain lua.h
-// exe.addLibraryPath("/usr/lib/lua5.3"); // this directory should contain the required liblua.so
-// exe.linkLibrary("lua5.3"); // this should be the name of the lua library to link against
+exe.root_module.addImport("lunaro", lunaro_module);
 ```
 
 #### Using a compiled dynamic library
@@ -76,23 +75,33 @@ exe.linkSystemLibrary("lua"); // or whatever the name of the lua library is unde
 ```zig
 const lunaro = b.dependency("lunaro", .{
     .lua = .lua51, // request the version of lua here, valid values are: lua51, lua52, lua53, lua54, luajit
+    .shared = true, // build a shared library
     // .strip = true, // strip all debug information from the lua library
     // .target = ... // build lua for a non-native target
 });
 
-exe.addModule(lunaro.module("lunaro-shared"));
+const liblua = lunaro.artifact("liblua");
+const lunaro_module = lunaro.module("lunaro");
+lunaro_module.linkLibrary(liblua);
+
+exe.root_module.addImport("lunaro", lunaro_module);
 ```
 
-### Static Linking
+### Using a compiled static library
 
 ```zig
 const lunaro = b.dependency("lunaro", .{
     .lua = .lua51, // request the version of lua here, valid values are: lua51, lua52, lua53, lua54, luajit
+    .shared = false, // build a static library
     // .strip = true, // strip all debug information from the lua library
     // .target = ... // build lua for a non-native target
 });
 
-exe.addModule(lunaro.module("lunaro-static"));
+const liblua = lunaro.artifact("liblua");
+const lunaro_module = lunaro.module("lunaro");
+lunaro_module.linkLibrary(liblua);
+
+exe.root_module.addImport("lunaro", lunaro_module);
 ```
 
 ## Differences
